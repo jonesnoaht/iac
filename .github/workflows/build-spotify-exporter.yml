@@ -1,7 +1,7 @@
 ---
 # Build the Spotify → Prometheus exporter image on the arc-chem self-hosted
 # runner (LAN access to zot.hwcopeland.net), push to zot, then deploy to the
-# monitor namespace. Mirrors build-jarvis-edge.yml.
+# monitor namespace.
 #
 # Required GitHub Actions secrets:
 #   ZOT_USERNAME / ZOT_PASSWORD   — zot.hwcopeland.net push creds
