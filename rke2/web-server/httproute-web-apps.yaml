@@ -1,4 +1,12 @@
 ---
+# Home Assistant is served DIRECTLY — deliberately NO authentik forward-auth.
+# Do NOT point this route at authentik-server (the hubble/longhorn/homepage
+# pattern): the HA companion app needs /auth/token and /api/websocket reachable
+# without an interposed IdP redirect, and breaks behind proxy auth. SSO is
+# handled IN-APP by the auth_oidc custom component (see homeassistant/
+# deployment.yaml), which is also what authentik's official HA integration
+# doc prescribes — it no longer documents a proxy provider for HA at all:
+# https://integrations.goauthentik.io/miscellaneous/home-assistant/
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -9,8 +17,6 @@ metadata:
     cloudflare-operator.io/type: "CNAME"
     cloudflare-operator.io/proxied: "true"
     cert-manager.io/cluster-issuer: cf-issuer
-    # Authentik forward auth integration
-    authentik.home.arpa/enabled: "true"
 spec:
   parentRefs:
     - name: hwcopeland-gateway
