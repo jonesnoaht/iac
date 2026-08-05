@@ -8,6 +8,14 @@
 #
 # Edit the rotation in the ads-config ConfigMap. Messages cycle deterministically
 # by hour-of-day so consecutive runs don't repeat.
+#
+# Failure semantics: a server that isn't accepting RCON (booting, mid-Valve-
+# update, crash-looping) is a server with nobody on it — broadcasting to it is
+# pointless, so those runs SKIP (exit 0) instead of Erroring. Only unexpected
+# script/RBAC problems fail the Job. (2026-08-04: the Valve 14174 update window
+# left the pod phase=Running with 27015 closed; both attempts Errored on
+# ConnectionRefused. phase=Running does NOT imply the engine is listening —
+# the startupProbe alone allows up to ~20 min of closed ports after boot.)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -81,9 +89,12 @@ spec:
               command: ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
               args:
                 - |
+                  # Server-side phase filter. `|| true` matters: jsonpath
+                  # .items[0] exits non-zero when nothing matches, and this
+                  # shell runs with -eu -o pipefail.
                   POD=$(kubectl get pod -n game-server -l app=cs2-surf-server \
-                        -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' \
-                        | awk '{print $1}')
+                        --field-selector=status.phase=Running \
+                        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
                   if [ -z "$POD" ]; then
                     echo "no running surf pod; skipping"; exit 0
                   fi
@@ -96,6 +107,8 @@ spec:
                   # Run RCON from inside the pod against its own loopback —
                   # no Service traversal, no external exposure. The pod's
                   # RCON_PASSWORD env is consumed inline; never logged.
+                  # Connect-class errors (refused/timeout/reset) mean the
+                  # engine is booting or mid-update: skip gracefully, exit 0.
                   kubectl exec -n game-server "$POD" -- python3 -c '
                   import os, socket, struct, subprocess, sys
                   pw  = os.environ["RCON_PASSWORD"]
@@ -103,13 +116,17 @@ spec:
                   port = int(os.environ.get("PORT", "27015"))
                   # CS2 -usercon binds RCON to the pod IP, not loopback.
                   host = subprocess.check_output(["hostname", "-i"]).split()[0].decode()
-                  s = socket.socket(); s.settimeout(5)
-                  s.connect((host, port))
-                  s.sendall(struct.pack("<iii", len(pw)+10, 0, 3) + pw.encode() + b"\x00\x00")
-                  s.recv(4096)
-                  cmd = f"say {msg}".encode()
-                  s.sendall(struct.pack("<iii", len(cmd)+10, 1, 2) + cmd + b"\x00\x00")
-                  s.close()
+                  try:
+                      s = socket.socket(); s.settimeout(5)
+                      s.connect((host, port))
+                      s.sendall(struct.pack("<iii", len(pw)+10, 0, 3) + pw.encode() + b"\x00\x00")
+                      s.recv(4096)
+                      cmd = f"say {msg}".encode()
+                      s.sendall(struct.pack("<iii", len(cmd)+10, 1, 2) + cmd + b"\x00\x00")
+                      s.close()
+                  except OSError as e:
+                      print(f"rcon not accepting connections ({e}); server booting/updating — skipping", flush=True)
+                      sys.exit(0)
                   ' "$MSG"
               volumeMounts:
                 - name: ads

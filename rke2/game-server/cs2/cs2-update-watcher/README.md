@@ -99,7 +99,8 @@ Dedicated ServiceAccount `cs2-update-watcher` with a namespaced Role:
 - `deployments`: `get`, `list`, `patch` (patch = how `rollout restart` works)
 - `services`: `get`, `list` (read active selector)
 - `pods`: `get`, `list`
-- `configmaps`: `get`, `update` (cross-run state)
+- `configmaps`: `get`, `patch` (cross-run state — `state_set` uses
+  `kubectl patch cm --type merge`, so the verb must be `patch`, not `update`)
 
 No `create`/`delete`, no `exec`, no secrets, no cluster-wide scope.
 

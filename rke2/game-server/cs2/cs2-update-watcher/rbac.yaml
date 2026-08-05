@@ -14,7 +14,7 @@
 #   services         get/list   → read cs2-modded-service selector to learn the
 #                                 active `app` label (surf vs kus) without hardcoding
 #   pods             get/list   → confirm the new pod actually came up / is Running
-#   configmaps       get/update → persist attempt-count + cooldown state across runs
+#   configmaps       get/patch  → persist attempt-count + cooldown state across runs
 #                                 (a CronJob is otherwise stateless — see controller)
 #
 # Deliberately NOT granted: create/delete on anything, exec, secrets, any
@@ -49,9 +49,15 @@ rules:
     verbs: ["get", "list"]
   - apiGroups: [""]
     resources: ["configmaps"]
-    # get/update only — the state ConfigMap is created declaratively in
-    # controller.yaml, so the SA never needs `create`.
-    verbs: ["get", "update"]
+    # get/patch only — the state ConfigMap is created declaratively in
+    # controller.yaml, so the SA never needs `create`. The verb must be
+    # `patch` (not `update`): watch.sh state_set() writes via
+    # `kubectl patch cm --type merge`, and RBAC treats patch/update as
+    # distinct verbs. With get/update only, every out-of-date pass died
+    # Forbidden at the first state_set — BEFORE the rollout restart — so
+    # the watcher could never actually push an update (hit 2026-08-04,
+    # Valve build 14173→14174).
+    verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
