@@ -33,6 +33,13 @@ spec:
       # Node drain policy
       nodeDrainPolicy: block-if-contains-last-replica
 
+      # Pin ALL system-managed components (CSI sidecar deployments, csi-plugin /
+      # engine-image DaemonSets, instance managers, share managers) to storage
+      # workers. Control-plane nodes must never run storage workloads.
+      # Requires node label node-role.kubernetes.io/storage=true on
+      # forum01/forum02/microedge/microedge2 (deliberately NOT nixos-gpu).
+      systemManagedComponentsNodeSelector: "node-role.kubernetes.io/storage:true"
+
       # Replica auto-balance
       replicaAutoBalance: best-effort
 
@@ -70,7 +77,8 @@ spec:
     longhornManager:
       priorityClass: ~
       tolerations: []
-      nodeSelector: {}
+      nodeSelector:
+        node-role.kubernetes.io/storage: "true"
 
     # ========================================
     # Longhorn UI
@@ -78,6 +86,15 @@ spec:
     longhornUI:
       replicas: 1
       priorityClass: ~
+      nodeSelector:
+        node-role.kubernetes.io/storage: "true"
+
+    # ========================================
+    # Longhorn Driver Deployer
+    # ========================================
+    longhornDriver:
+      nodeSelector:
+        node-role.kubernetes.io/storage: "true"
 
     # ========================================
     # Ingress (disabled - using Gateway API HTTPRoute)
