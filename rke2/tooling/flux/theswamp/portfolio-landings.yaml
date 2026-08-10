@@ -1,0 +1,268 @@
+---
+# Lightweight public landings for portfolio product subdomains.
+# cytogate.flmanbiosci.net · u4u-privacy.flmanbiosci.net
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portfolio-landings
+  namespace: theswamp
+data:
+  nginx.conf: |
+    worker_processes 1;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+    events { worker_connections 128; }
+    http {
+      access_log /dev/stdout;
+      server {
+        listen 8080;
+        server_name _;
+        root /usr/share/nginx/html;
+        location / { try_files $uri $uri/ /index.html; }
+      }
+    }
+  cytogate.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>CytoGate — Florida Man Bioscience</title>
+      <meta name="description" content="CytoGate: high-performance flow cytometry gating and strategy tools from Florida Man Bioscience." />
+      <link rel="canonical" href="https://cytogate.flmanbiosci.net/" />
+      <style>
+        :root { color-scheme: light; --ink:#0d1117; --muted:#3a3f4a; --brand:#1a6b4a; --bg:#f5f4f0; }
+        body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+        main { max-width: 42rem; margin: 0 auto; padding: 4rem 1.5rem; }
+        h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 0.75rem; }
+        p { color: var(--muted); line-height: 1.6; }
+        a { color: var(--brand); }
+        .eyebrow { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand); }
+        .card { margin-top: 2rem; padding: 1.25rem 1.5rem; border: 1px solid #dbd9d3; border-radius: 0.75rem; background: #fff; }
+      </style>
+    </head>
+    <body>
+      <main>
+        <p class="eyebrow">Florida Man Bioscience</p>
+        <h1>CytoGate</h1>
+        <p>High-performance flow-cytometry gating, compensation, and strategy tooling — engineered for real FCS workflows, not toy demos.</p>
+        <div class="card">
+          <p><strong>Status:</strong> product surface under active development. This subdomain is reserved for the CytoGate web presence and releases.</p>
+          <p>Company home: <a href="https://flmanbiosci.net/">flmanbiosci.net</a></p>
+          <p>Contact: <a href="mailto:hello@flmanbiosci.net">hello@flmanbiosci.net</a></p>
+        </div>
+      </main>
+    </body>
+    </html>
+  u4u-privacy.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>u4u-privacy — Florida Man Bioscience</title>
+      <meta name="description" content="u4u-privacy: local-first consumer genomics — variant calling and interpretation without shipping your genome to a vendor." />
+      <link rel="canonical" href="https://u4u-privacy.flmanbiosci.net/" />
+      <style>
+        :root { color-scheme: light; --ink:#0d1117; --muted:#3a3f4a; --brand:#1a6b4a; --bg:#f5f4f0; }
+        body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+        main { max-width: 42rem; margin: 0 auto; padding: 4rem 1.5rem; }
+        h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 0.75rem; }
+        p { color: var(--muted); line-height: 1.6; }
+        a { color: var(--brand); }
+        .eyebrow { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand); }
+        .card { margin-top: 2rem; padding: 1.25rem 1.5rem; border: 1px solid #dbd9d3; border-radius: 0.75rem; background: #fff; }
+      </style>
+    </head>
+    <body>
+      <main>
+        <p class="eyebrow">Florida Man Bioscience · U4U</p>
+        <h1>u4u-privacy</h1>
+        <p>Local-first consumer genomics: variant calling, interpretation, and reports on hardware you control — without shipping raw genetic data to a third-party cloud for processing.</p>
+        <div class="card">
+          <p><strong>Status:</strong> toolkit / desktop surface under development. This subdomain is the public home for u4u-privacy docs and downloads.</p>
+          <p>Related product analytics: <a href="https://peptodyssey.flmanbiosci.net/">PeptOdyssey</a></p>
+          <p>Company home: <a href="https://flmanbiosci.net/">flmanbiosci.net</a></p>
+          <p>Contact: <a href="mailto:hello@flmanbiosci.net">hello@flmanbiosci.net</a></p>
+        </div>
+      </main>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing-cytogate
+  namespace: theswamp
+  labels:
+    app: landing-cytogate
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: landing-cytogate
+  template:
+    metadata:
+      labels:
+        app: landing-cytogate
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: conf
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: cytogate.html
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+      volumes:
+        - name: conf
+          configMap:
+            name: portfolio-landings
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing-cytogate
+  namespace: theswamp
+spec:
+  selector:
+    app: landing-cytogate
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing-u4u-privacy
+  namespace: theswamp
+  labels:
+    app: landing-u4u-privacy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: landing-u4u-privacy
+  template:
+    metadata:
+      labels:
+        app: landing-u4u-privacy
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: conf
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: u4u-privacy.html
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+      volumes:
+        - name: conf
+          configMap:
+            name: portfolio-landings
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing-u4u-privacy
+  namespace: theswamp
+spec:
+  selector:
+    app: landing-u4u-privacy
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cytogate
+  namespace: theswamp
+spec:
+  parentRefs:
+    - name: hwcopeland-gateway
+      namespace: kube-system
+      sectionName: flmanbiosci-https
+  hostnames:
+    - "cytogate.flmanbiosci.net"
+  rules:
+    - backendRefs:
+        - name: landing-cytogate
+          port: 80
+---
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: cytogate
+  namespace: theswamp
+spec:
+  name: cytogate.flmanbiosci.net
+  type: CNAME
+  content: flmanbiosci.net
+  proxied: true
+  ttl: 1
+  interval: 5m
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: u4u-privacy
+  namespace: theswamp
+spec:
+  parentRefs:
+    - name: hwcopeland-gateway
+      namespace: kube-system
+      sectionName: flmanbiosci-https
+  hostnames:
+    - "u4u-privacy.flmanbiosci.net"
+  rules:
+    - backendRefs:
+        - name: landing-u4u-privacy
+          port: 80
+---
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: u4u-privacy
+  namespace: theswamp
+spec:
+  name: u4u-privacy.flmanbiosci.net
+  type: CNAME
+  content: flmanbiosci.net
+  proxied: true
+  ttl: 1
+  interval: 5m
