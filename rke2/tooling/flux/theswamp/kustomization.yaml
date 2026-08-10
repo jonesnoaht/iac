@@ -8,6 +8,7 @@ resources:
   - service.yaml
   - deployment-frontend.yaml
   - service-frontend.yaml
+  - deployment-edge.yaml
   - httproute.yaml
   - httproute-www-redirect.yaml
   - rbac.yaml

@@ -48,10 +48,44 @@ flow (the same one the `Kubernetes Users` group uses), landing on the same
 kubeconfig pointing at `auth.hwcopeland.net`. Use this if you want per-person
 attribution instead of a shared key.
 
+## Browser SSO (Authentik apps in this namespace)
+
+These hosts are guarded by Authentik **full-proxy** (HTTPRoute → `authentik-server`
+→ app). Membership in **Florida Man Bioscience** or **Infrastructure** is required
+unless noted.
+
+| Host | App slug | Upstream |
+|------|----------|----------|
+| `https://flmanbiosci.net` | `flmanbiosci` | `u4u-edge` → frontend + `/api/v1` → API |
+| `https://app.flmanbiosci.net` | `flmanbiosci-app` | same edge |
+| `https://sites.flmanbiosci.net` | `site-tracker` | site-tracker:8040 |
+
+**Public (no login)** on the PeptOdyssey hosts (Authentik `skip_path_regex`):
+
+- `/peptodyssey/privacy` — App Store / TestFlight privacy URL
+- `/api/v1/health` — health probes
+- `/api/v1/healthkit/*` — device-token HealthKit (iOS does not use browser SSO)
+
+**Direct API (no Authentik browser proxy):**
+
+- `https://api.flmanbiosci.net` → `u4u-engine:8000` (scripts / HealthKit base URL)
+
+**iOS device-code OIDC** (separate from web proxy): Authentik application
+`peptodyssey` at `https://auth.hwcopeland.net/application/o/peptodyssey/`
+(`client_id=peptodyssey`, public client). See `rke2/authentik/blueprints/providers-peptodyssey.yaml`.
+
+Blueprints live under `rke2/authentik/blueprints/` and must be mirrored into
+`rke2/authentik/blueprints-configmap.yaml` (what the pod mounts). After editing
+both, commit and let Flux reconcile the `authentik` kustomization (or
+`helm upgrade` via `rke2/authentik/update.sh` if you operate that path).
+
 ## Scope & caveats
-- Both paths bind to the in-namespace `admin` ClusterRole via **RoleBinding** →
+- Both kubectl paths bind to the in-namespace `admin` ClusterRole via **RoleBinding** →
   full control inside `theswamp`, **zero** access to any other namespace / nodes
   / cluster resources.
+- **HTTPRoute / Gateway API resources** may still require a cluster-admin apply
+  path (Flux); the stock `admin` RoleBinding does not always cover
+  `gateway.networking.k8s.io` on this cluster.
 - **Reachability:** the kube-apiserver must be reachable from wherever they run
   `kubectl` (home LAN / VPN). RBAC does not grant network reachability.
 - **Rotate** the static key by deleting + recreating the `swamp-dev-token`
