@@ -27,7 +27,11 @@ Authentik **Florida Man Bioscience** group + `kubelogin` against
 | `https://api.flmanbiosci.net` | none (legacy alias) | same API |
 | `https://flmanbiosci.net` | **public** company | frontend marketing + redirects |
 | `https://app.flmanbiosci.net` | 301 → product host | — |
-| `https://sites.flmanbiosci.net` | Authentik (site-tracker) | site-tracker |
+| `https://sites.flmanbiosci.net` | **302** → `sites.floridamanweb.online` | legacy desk |
+| `https://sites.floridamanweb.online` | Authentik (site-tracker) | FMWS desk (canonical) |
+| `https://ai411.floridamanweb.online` | **public** | AI 411 landing + callback form |
+| `https://floridamanweb.online` | **public** | Hashed demo sites + `/ai411/` |
+| `https://voice.flmanbiosci.net` | Twilio signature | FMWS voice/SMS/API |
 | `https://cytogate.flmanbiosci.net` | **public** landing | portfolio landing |
 | `https://u4u-privacy.flmanbiosci.net` | **public** landing | portfolio landing |
 | `https://nanodisk.flmanbiosci.net` | **public** landing | MSP / vector nanodisk (research) |
@@ -54,6 +58,20 @@ Authentik **Florida Man Bioscience** group + `kubelogin` against
 
 Blueprints: `rke2/authentik/blueprints/` must stay mirrored in
 `blueprints-configmap.yaml`.
+
+## FMWS product loop (docs)
+
+Monorepo `demo-websites`:
+
+- `docs/ARCHITECTURE.md` — system design
+- `docs/PRODUCT_LOOP.md` — funnel ops
+- `docs/OPS_CLUSTER.md` — DNS/Authentik/Flux/secrets runbook
+- `docs/API.md` — HTTP APIs
+
+IAC manifests for AI411/sites desk: `httproute-ai411.yaml`,
+`httproute-tracker.yaml`, `floridamanweb-dnsrecord.yaml` (ai411 + sites A
+records), Authentik `providers-sitetracker.yaml` external_host
+`https://sites.floridamanweb.online`.
 
 ## Scope & caveats
 
