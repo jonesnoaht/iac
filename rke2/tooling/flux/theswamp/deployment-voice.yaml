@@ -25,6 +25,10 @@ spec:
           envFrom:
             - secretRef:
                 name: voice-agent-keys
+            # Honcho / optional keys not yet on the Bitwarden item (see external-secret-voice).
+            - secretRef:
+                name: voice-agent-extra
+                optional: true
           env:
             - name: PUBLIC_BASE_URL
               value: https://voice.flmanbiosci.net
@@ -36,6 +40,24 @@ spec:
               value: eve
             - name: OWNER_NAME
               value: Noah
+            # Per-phone routing lands with voice-agent image that supports AGENT_MODE=auto.
+            # Until then: ai411 default (unknown callers). Flip to auto after image ships.
+            - name: AGENT_MODE
+              value: ai411
+            - name: SITES_DESK_URL
+              value: https://sites.floridamanweb.online
+            - name: AI411_PUBLIC_URL
+              value: https://ai411.floridamanweb.online
+            - name: CUSTOMERS_PATH
+              value: /data/customers.json
+            - name: BUILDER_BRIEFS_DIR
+              value: /data/builder-briefs
+            - name: MEMORY_DIR
+              value: /data/customer-memory
+            - name: CALL_DB
+              value: /data/call-log.db
+            - name: CORS_ALLOW_ORIGINS
+              value: "https://ai411.floridamanweb.online,https://floridamanweb.online,https://www.floridamanweb.online"
             - name: LLM_PROVIDER
               value: anthropic
             - name: CALL_LOG

@@ -22,6 +22,7 @@ resources:
   - service-demosites.yaml
   - httproute-demosites.yaml
   - httproute-demosites-www-redirect.yaml
+  - httproute-ai411.yaml
   - pvc-voice.yaml
   - external-secret-voice.yaml
   - deployment-voice.yaml
@@ -31,3 +32,4 @@ resources:
   - deployment-tracker.yaml
   - service-tracker.yaml
   - httproute-tracker.yaml
+  - httproute-tracker-legacy-redirect.yaml

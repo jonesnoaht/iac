@@ -28,6 +28,14 @@ spec:
           env:
             - name: SITES_BASE_URL
               value: https://floridamanweb.online
+            - name: DESK_PUBLIC_HOST
+              value: sites.floridamanweb.online
+            # Voice agent is source of truth for customers.json (RWO PVC).
+            # Tracker reads via in-cluster API so both see the same registry.
+            - name: CUSTOMERS_API
+              value: http://voice-agent.theswamp.svc.cluster.local:8035
+            - name: CUSTOMERS_PATH
+              value: /data/customers.json
             - name: TRACKER_DB
               value: /data/tracker.db
           volumeMounts:
