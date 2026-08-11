@@ -40,10 +40,9 @@ spec:
               value: eve
             - name: OWNER_NAME
               value: Noah
-            # Per-phone routing lands with voice-agent image that supports AGENT_MODE=auto.
-            # Until then: ai411 default (unknown callers). Flip to auto after image ships.
+            # Voice image now supports AGENT_MODE=auto — routes per customer registry.
             - name: AGENT_MODE
-              value: ai411
+              value: auto
             - name: SITES_DESK_URL
               value: https://sites.floridamanweb.online
             - name: AI411_PUBLIC_URL
