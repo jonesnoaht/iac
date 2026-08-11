@@ -1,0 +1,15 @@
+---
+# DNS A record for hu-rnmp.flmanbiosci.net
+# Mirrors: rke2/kube-system/flmanbiosci-dnsrecord.yaml pattern
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: hu-rnmp-flmanbiosci
+  namespace: kube-system
+spec:
+  name: hu-rnmp.flmanbiosci.net
+  type: A
+  content: 69.180.240.158
+  proxied: true
+  ttl: 1
+  interval: 5m

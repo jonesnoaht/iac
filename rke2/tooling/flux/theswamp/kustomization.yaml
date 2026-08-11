@@ -29,3 +29,4 @@ resources:
   - deployment-tracker.yaml
   - service-tracker.yaml
   - httproute-tracker.yaml
+  - httproute-hu-rnmp.yaml
