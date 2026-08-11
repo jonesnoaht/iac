@@ -22,7 +22,7 @@ spec:
         - name: zot-pull-secret
       containers:
         - name: site-tracker
-          image: zot.hwcopeland.net/florida-man-bioscience/site-tracker:main@sha256:a23207e2c6fa0d4065e3db3eeee1e25ed0dda60beafe4458b9bdcc587208c058 # {"$imagepolicy": "tooling:site-tracker"}
+          image: zot.hwcopeland.net/florida-man-bioscience/site-tracker:main@sha256:706f0b1bacf3b6cef3b103af843d2cd6d00b94e3d06faa613a194b73b59675a9 # {"$imagepolicy": "tooling:site-tracker"}
           ports:
             - containerPort: 8040
           env:
