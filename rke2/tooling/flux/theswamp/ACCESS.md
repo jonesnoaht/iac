@@ -30,6 +30,9 @@ Authentik **Florida Man Bioscience** group + `kubelogin` against
 | `https://sites.flmanbiosci.net` | Authentik (site-tracker) | site-tracker |
 | `https://cytogate.flmanbiosci.net` | **public** landing | portfolio landing |
 | `https://u4u-privacy.flmanbiosci.net` | **public** landing | portfolio landing |
+| `https://nanodisk.flmanbiosci.net` | **public** landing | MSP / vector nanodisk (research) |
+| `https://drug-design.flmanbiosci.net` | **public** lab platform | next-gen drug design |
+| `https://drug-design.flmanbiosci.net/protein-chemistry/` | **public** page | VR protein chemistry |
 
 ### Public on product host (Authentik `skip_path_regex`)
 

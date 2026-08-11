@@ -1,13 +1,13 @@
 ---
 # Lightweight public landings for portfolio product subdomains.
-# cytogate.flmanbiosci.net · u4u-privacy.flmanbiosci.net
+# cytogate · u4u-privacy · nanodisk (MSP/vector) · drug-design (+ /protein-chemistry)
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: portfolio-landings
   namespace: theswamp
 data:
-  nginx.conf: |
+  nginx-single.conf: |
     worker_processes 1;
     error_log /dev/stderr warn;
     pid /tmp/nginx.pid;
@@ -21,110 +21,178 @@ data:
         location / { try_files $uri $uri/ /index.html; }
       }
     }
+  nginx-drug-design.conf: |
+    worker_processes 1;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+    events { worker_connections 128; }
+    http {
+      access_log /dev/stdout;
+      server {
+        listen 8080;
+        server_name _;
+        root /usr/share/nginx/html;
+        location = /protein-chemistry { return 301 /protein-chemistry/; }
+        location /protein-chemistry/ {
+          try_files /protein-chemistry.html =404;
+        }
+        location / {
+          try_files $uri $uri/ /index.html;
+        }
+      }
+    }
+  styles.css: |
+    :root { color-scheme: light; --ink:#0d1117; --muted:#3a3f4a; --brand:#1a6b4a; --bg:#f5f4f0; --line:#dbd9d3; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+    main { max-width: 44rem; margin: 0 auto; padding: 4rem 1.5rem 5rem; }
+    h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 0.75rem; }
+    h2 { font-size: 1.15rem; margin: 1.75rem 0 0.5rem; }
+    p, li { color: var(--muted); line-height: 1.65; }
+    a { color: var(--brand); }
+    .eyebrow { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand); margin: 0 0 0.75rem; }
+    .card { margin-top: 1.5rem; padding: 1.25rem 1.5rem; border: 1px solid var(--line); border-radius: 0.75rem; background: #fff; }
+    .nav { display:flex; flex-wrap:wrap; gap:0.75rem 1.25rem; margin: 1.25rem 0 0; font-size: 0.95rem; }
+    .pill { display:inline-block; margin-top: 1rem; padding: 0.45rem 0.9rem; border-radius: 999px; background: var(--brand); color: #fff !important; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+    .pill.secondary { background: #fff; color: var(--brand) !important; border: 1px solid var(--line); }
+    ul { padding-left: 1.2rem; }
   cytogate.html: |
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <html lang="en"><head>
+      <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>CytoGate — Florida Man Bioscience</title>
-      <meta name="description" content="CytoGate: high-performance flow cytometry gating and strategy tools from Florida Man Bioscience." />
+      <meta name="description" content="CytoGate: high-performance flow cytometry gating and strategy tools." />
       <link rel="canonical" href="https://cytogate.flmanbiosci.net/" />
-      <style>
-        :root { color-scheme: light; --ink:#0d1117; --muted:#3a3f4a; --brand:#1a6b4a; --bg:#f5f4f0; }
-        body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
-        main { max-width: 42rem; margin: 0 auto; padding: 4rem 1.5rem; }
-        h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 0.75rem; }
-        p { color: var(--muted); line-height: 1.6; }
-        a { color: var(--brand); }
-        .eyebrow { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand); }
-        .card { margin-top: 2rem; padding: 1.25rem 1.5rem; border: 1px solid #dbd9d3; border-radius: 0.75rem; background: #fff; }
-      </style>
-    </head>
-    <body>
-      <main>
-        <p class="eyebrow">Florida Man Bioscience</p>
-        <h1>CytoGate</h1>
-        <p>High-performance flow-cytometry gating, compensation, and strategy tooling — engineered for real FCS workflows, not toy demos.</p>
-        <div class="card">
-          <p><strong>Status:</strong> product surface under active development. This subdomain is reserved for the CytoGate web presence and releases.</p>
-          <p>Company home: <a href="https://flmanbiosci.net/">flmanbiosci.net</a></p>
-          <p>Contact: <a href="mailto:hello@flmanbiosci.net">hello@flmanbiosci.net</a></p>
-        </div>
-      </main>
-    </body>
-    </html>
+      <link rel="stylesheet" href="/styles.css" />
+    </head><body><main>
+      <p class="eyebrow">Florida Man Bioscience</p>
+      <h1>CytoGate</h1>
+      <p>High-performance flow-cytometry gating, compensation, and strategy tooling — engineered for real FCS workflows, not toy demos.</p>
+      <div class="card">
+        <p><strong>Status:</strong> product surface under active development. This subdomain is reserved for the CytoGate web presence and releases.</p>
+        <p>Company home: <a href="https://flmanbiosci.net/">flmanbiosci.net</a> · Contact: <a href="mailto:hello@flmanbiosci.net">hello@flmanbiosci.net</a></p>
+      </div>
+    </main></body></html>
   u4u-privacy.html: |
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <html lang="en"><head>
+      <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>u4u-privacy — Florida Man Bioscience</title>
-      <meta name="description" content="u4u-privacy: local-first consumer genomics — variant calling and interpretation without shipping your genome to a vendor." />
+      <meta name="description" content="u4u-privacy: local-first consumer genomics without shipping your genome to a vendor." />
       <link rel="canonical" href="https://u4u-privacy.flmanbiosci.net/" />
-      <style>
-        :root { color-scheme: light; --ink:#0d1117; --muted:#3a3f4a; --brand:#1a6b4a; --bg:#f5f4f0; }
-        body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:var(--bg); color:var(--ink); }
-        main { max-width: 42rem; margin: 0 auto; padding: 4rem 1.5rem; }
-        h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 0.75rem; }
-        p { color: var(--muted); line-height: 1.6; }
-        a { color: var(--brand); }
-        .eyebrow { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand); }
-        .card { margin-top: 2rem; padding: 1.25rem 1.5rem; border: 1px solid #dbd9d3; border-radius: 0.75rem; background: #fff; }
-      </style>
-    </head>
-    <body>
-      <main>
-        <p class="eyebrow">Florida Man Bioscience · U4U</p>
-        <h1>u4u-privacy</h1>
-        <p>Local-first consumer genomics: variant calling, interpretation, and reports on hardware you control — without shipping raw genetic data to a third-party cloud for processing.</p>
-        <div class="card">
-          <p><strong>Status:</strong> toolkit / desktop surface under development. This subdomain is the public home for u4u-privacy docs and downloads.</p>
-          <p>Related product analytics: <a href="https://peptodyssey.flmanbiosci.net/">PeptOdyssey</a></p>
-          <p>Company home: <a href="https://flmanbiosci.net/">flmanbiosci.net</a></p>
-          <p>Contact: <a href="mailto:hello@flmanbiosci.net">hello@flmanbiosci.net</a></p>
-        </div>
-      </main>
-    </body>
-    </html>
+      <link rel="stylesheet" href="/styles.css" />
+    </head><body><main>
+      <p class="eyebrow">Florida Man Bioscience · U4U</p>
+      <h1>u4u-privacy</h1>
+      <p>Local-first consumer genomics: variant calling, interpretation, and reports on hardware you control — without shipping raw genetic data to a third-party cloud for processing.</p>
+      <div class="card">
+        <p><strong>Status:</strong> toolkit / desktop surface under development.</p>
+        <p>Related: <a href="https://peptodyssey.flmanbiosci.net/">PeptOdyssey</a> · <a href="https://flmanbiosci.net/">Company</a> · <a href="mailto:hello@flmanbiosci.net">hello@flmanbiosci.net</a></p>
+      </div>
+    </main></body></html>
+  nanodisk.html: |
+    <!DOCTYPE html>
+    <html lang="en"><head>
+      <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Vector nanodisk (MSP) — Florida Man Bioscience</title>
+      <meta name="description" content="MSP / vector nanodisk delivery research — membrane-scaffold-protein nanodisks for peptide and nucleic-acid payloads. Research-stage, not a marketed therapeutic." />
+      <link rel="canonical" href="https://nanodisk.flmanbiosci.net/" />
+      <link rel="stylesheet" href="/styles.css" />
+    </head><body><main>
+      <p class="eyebrow">Florida Man Bioscience · Delivery research</p>
+      <h1>Vector nanodisk delivery</h1>
+      <p>Membrane-scaffold-protein (<strong>MSP</strong>) nanodisk platform research aimed at carrying peptide and nucleic-acid payloads across tissue barriers — the long-horizon <em>Deliver</em> leg of the FMB loop.</p>
+      <div class="card">
+        <p><strong>Status:</strong> research-stage molecule layer. <strong>Not</strong> a shipped therapeutic, approved drug, or clinical product.</p>
+        <p>This subdomain hosts public program notes and future data/docs for the vector nanodisk / MSP program.</p>
+        <p>Company: <a href="https://flmanbiosci.net/">flmanbiosci.net</a> · Contact: <a href="mailto:hello@flmanbiosci.net">hello@flmanbiosci.net</a></p>
+      </div>
+    </main></body></html>
+  drug-design.html: |
+    <!DOCTYPE html>
+    <html lang="en"><head>
+      <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Next-gen drug design lab — Florida Man Bioscience</title>
+      <meta name="description" content="Next-generation drug design lab platform: structure-guided design, simulated DBTL, and VR protein chemistry." />
+      <link rel="canonical" href="https://drug-design.flmanbiosci.net/" />
+      <link rel="stylesheet" href="/styles.css" />
+    </head><body><main>
+      <p class="eyebrow">Florida Man Bioscience · Design platform</p>
+      <h1>Next-gen drug design lab</h1>
+      <p>A structure-guided design platform for peptide and protein work: desktop APIs, simulated design–build–test–learn (DBTL) economics, and immersive visualization — without wet-lab hardware claims.</p>
+      <nav class="nav">
+        <a class="pill" href="/protein-chemistry/">Protein chemistry (VR)</a>
+        <a class="pill secondary" href="https://flmanbiosci.net/">Company home</a>
+      </nav>
+      <div class="card">
+        <h2>What lives here</h2>
+        <ul>
+          <li><strong>Lab platform home</strong> — this page: program overview and entry points.</li>
+          <li><strong>Protein chemistry (VR)</strong> — local-first structure design/viz stack (VR + desktop API), Stage A design surface.</li>
+          <li>Simulated DBTL seams for design economics (not Stage B robotics).</li>
+        </ul>
+        <p><strong>Non-goals:</strong> clinical robots, patient HealthKit data, therapeutic claims in the UI.</p>
+        <p>Contact: <a href="mailto:hello@flmanbiosci.net">hello@flmanbiosci.net</a></p>
+      </div>
+    </main></body></html>
+  protein-chemistry.html: |
+    <!DOCTYPE html>
+    <html lang="en"><head>
+      <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Protein chemistry (VR) — Drug design lab</title>
+      <meta name="description" content="Protein chemistry VR / desktop structure design surface for Florida Man Bioscience next-gen drug design lab." />
+      <link rel="canonical" href="https://drug-design.flmanbiosci.net/protein-chemistry/" />
+      <link rel="stylesheet" href="/styles.css" />
+    </head><body><main>
+      <p class="eyebrow">Drug design lab · Protein chemistry</p>
+      <h1>Protein chemistry (VR)</h1>
+      <p>Local-first protein structure design and visualization — VR headset client plus desktop/WebSocket API — FMB’s Stage A <strong>design surface</strong> for structure-guided work and simulated DBTL economics. Not a wet lab.</p>
+      <nav class="nav">
+        <a class="pill secondary" href="/">← Drug design lab</a>
+        <a class="pill secondary" href="https://github.com/Jones-Medical-Biology/protein-chemistry">Code (protein-chemistry)</a>
+      </nav>
+      <div class="card">
+        <h2>What ships</h2>
+        <ul>
+          <li><code>protein-vr</code> backend — command registry, tests, demo DBTL pipeline</li>
+          <li>Unity VR client — headset visualization (prototype path documented in-repo)</li>
+          <li>Docs: PROTOCOL, DBTL phase notes, PRODUCT / RELEASE</li>
+        </ul>
+        <h2>Stage A mapping</h2>
+        <ul>
+          <li><strong>Design</strong> — mutate / drug / assembly modules + DBTL design step</li>
+          <li><strong>Build / Test</strong> — simulated seams today (not Stage B hardware)</li>
+          <li><strong>Learn</strong> — pipeline decisions + ledger</li>
+        </ul>
+        <p><strong>Out of scope:</strong> clinical lab robots; PeptOdyssey / HealthKit patient data; therapeutic claims.</p>
+        <p>Platform home: <a href="https://drug-design.flmanbiosci.net/">drug-design.flmanbiosci.net</a> · Company: <a href="https://flmanbiosci.net/">flmanbiosci.net</a></p>
+      </div>
+    </main></body></html>
 ---
+# ---- generic single-page landing template bits (repeated deploys) ----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: landing-cytogate
   namespace: theswamp
-  labels:
-    app: landing-cytogate
+  labels: { app: landing-cytogate }
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app: landing-cytogate
+    matchLabels: { app: landing-cytogate }
   template:
     metadata:
-      labels:
-        app: landing-cytogate
+      labels: { app: landing-cytogate }
     spec:
       containers:
         - name: nginx
           image: nginx:1.27-alpine
-          ports:
-            - containerPort: 8080
-              name: http
+          ports: [{ containerPort: 8080, name: http }]
           volumeMounts:
-            - name: conf
-              mountPath: /etc/nginx/nginx.conf
-              subPath: nginx.conf
-              readOnly: true
-            - name: conf
-              mountPath: /usr/share/nginx/html/index.html
-              subPath: cytogate.html
-              readOnly: true
+            - { name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx-single.conf, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/index.html, subPath: cytogate.html, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/styles.css, subPath: styles.css, readOnly: true }
           readinessProbe:
-            httpGet:
-              path: /
-              port: http
+            httpGet: { path: /, port: http }
             initialDelaySeconds: 2
             periodSeconds: 10
           resources:
@@ -132,8 +200,7 @@ spec:
             limits: { cpu: 100m, memory: 64Mi }
       volumes:
         - name: conf
-          configMap:
-            name: portfolio-landings
+          configMap: { name: portfolio-landings }
 ---
 apiVersion: v1
 kind: Service
@@ -141,49 +208,33 @@ metadata:
   name: landing-cytogate
   namespace: theswamp
 spec:
-  selector:
-    app: landing-cytogate
-  ports:
-    - name: http
-      port: 80
-      targetPort: http
+  selector: { app: landing-cytogate }
+  ports: [{ name: http, port: 80, targetPort: http }]
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: landing-u4u-privacy
   namespace: theswamp
-  labels:
-    app: landing-u4u-privacy
+  labels: { app: landing-u4u-privacy }
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app: landing-u4u-privacy
+    matchLabels: { app: landing-u4u-privacy }
   template:
     metadata:
-      labels:
-        app: landing-u4u-privacy
+      labels: { app: landing-u4u-privacy }
     spec:
       containers:
         - name: nginx
           image: nginx:1.27-alpine
-          ports:
-            - containerPort: 8080
-              name: http
+          ports: [{ containerPort: 8080, name: http }]
           volumeMounts:
-            - name: conf
-              mountPath: /etc/nginx/nginx.conf
-              subPath: nginx.conf
-              readOnly: true
-            - name: conf
-              mountPath: /usr/share/nginx/html/index.html
-              subPath: u4u-privacy.html
-              readOnly: true
+            - { name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx-single.conf, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/index.html, subPath: u4u-privacy.html, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/styles.css, subPath: styles.css, readOnly: true }
           readinessProbe:
-            httpGet:
-              path: /
-              port: http
+            httpGet: { path: /, port: http }
             initialDelaySeconds: 2
             periodSeconds: 10
           resources:
@@ -191,8 +242,7 @@ spec:
             limits: { cpu: 100m, memory: 64Mi }
       volumes:
         - name: conf
-          configMap:
-            name: portfolio-landings
+          configMap: { name: portfolio-landings }
 ---
 apiVersion: v1
 kind: Service
@@ -200,13 +250,95 @@ metadata:
   name: landing-u4u-privacy
   namespace: theswamp
 spec:
-  selector:
-    app: landing-u4u-privacy
-  ports:
-    - name: http
-      port: 80
-      targetPort: http
+  selector: { app: landing-u4u-privacy }
+  ports: [{ name: http, port: 80, targetPort: http }]
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing-nanodisk
+  namespace: theswamp
+  labels: { app: landing-nanodisk }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: landing-nanodisk }
+  template:
+    metadata:
+      labels: { app: landing-nanodisk }
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports: [{ containerPort: 8080, name: http }]
+          volumeMounts:
+            - { name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx-single.conf, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/index.html, subPath: nanodisk.html, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/styles.css, subPath: styles.css, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+      volumes:
+        - name: conf
+          configMap: { name: portfolio-landings }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing-nanodisk
+  namespace: theswamp
+spec:
+  selector: { app: landing-nanodisk }
+  ports: [{ name: http, port: 80, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing-drug-design
+  namespace: theswamp
+  labels: { app: landing-drug-design }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: landing-drug-design }
+  template:
+    metadata:
+      labels: { app: landing-drug-design }
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports: [{ containerPort: 8080, name: http }]
+          volumeMounts:
+            - { name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx-drug-design.conf, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/index.html, subPath: drug-design.html, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/protein-chemistry.html, subPath: protein-chemistry.html, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/styles.css, subPath: styles.css, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+      volumes:
+        - name: conf
+          configMap: { name: portfolio-landings }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing-drug-design
+  namespace: theswamp
+spec:
+  selector: { app: landing-drug-design }
+  ports: [{ name: http, port: 80, targetPort: http }]
+---
+# ---- HTTPRoutes + DNS (need Flux / cluster-admin for apply) ----
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -214,15 +346,10 @@ metadata:
   namespace: theswamp
 spec:
   parentRefs:
-    - name: hwcopeland-gateway
-      namespace: kube-system
-      sectionName: flmanbiosci-https
-  hostnames:
-    - "cytogate.flmanbiosci.net"
+    - { name: hwcopeland-gateway, namespace: kube-system, sectionName: flmanbiosci-https }
+  hostnames: ["cytogate.flmanbiosci.net"]
   rules:
-    - backendRefs:
-        - name: landing-cytogate
-          port: 80
+    - backendRefs: [{ name: landing-cytogate, port: 80 }]
 ---
 apiVersion: cloudflare-operator.io/v1
 kind: DNSRecord
@@ -244,15 +371,10 @@ metadata:
   namespace: theswamp
 spec:
   parentRefs:
-    - name: hwcopeland-gateway
-      namespace: kube-system
-      sectionName: flmanbiosci-https
-  hostnames:
-    - "u4u-privacy.flmanbiosci.net"
+    - { name: hwcopeland-gateway, namespace: kube-system, sectionName: flmanbiosci-https }
+  hostnames: ["u4u-privacy.flmanbiosci.net"]
   rules:
-    - backendRefs:
-        - name: landing-u4u-privacy
-          port: 80
+    - backendRefs: [{ name: landing-u4u-privacy, port: 80 }]
 ---
 apiVersion: cloudflare-operator.io/v1
 kind: DNSRecord
@@ -261,6 +383,56 @@ metadata:
   namespace: theswamp
 spec:
   name: u4u-privacy.flmanbiosci.net
+  type: CNAME
+  content: flmanbiosci.net
+  proxied: true
+  ttl: 1
+  interval: 5m
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: nanodisk
+  namespace: theswamp
+spec:
+  parentRefs:
+    - { name: hwcopeland-gateway, namespace: kube-system, sectionName: flmanbiosci-https }
+  hostnames: ["nanodisk.flmanbiosci.net"]
+  rules:
+    - backendRefs: [{ name: landing-nanodisk, port: 80 }]
+---
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: nanodisk
+  namespace: theswamp
+spec:
+  name: nanodisk.flmanbiosci.net
+  type: CNAME
+  content: flmanbiosci.net
+  proxied: true
+  ttl: 1
+  interval: 5m
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: drug-design
+  namespace: theswamp
+spec:
+  parentRefs:
+    - { name: hwcopeland-gateway, namespace: kube-system, sectionName: flmanbiosci-https }
+  hostnames: ["drug-design.flmanbiosci.net"]
+  rules:
+    - backendRefs: [{ name: landing-drug-design, port: 80 }]
+---
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: drug-design
+  namespace: theswamp
+spec:
+  name: drug-design.flmanbiosci.net
   type: CNAME
   content: flmanbiosci.net
   proxied: true
