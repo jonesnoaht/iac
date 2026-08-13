@@ -15,3 +15,16 @@ entries:
   model: authentik_providers_oauth2.scopemapping
   permissions: []
   state: present
+# Override Authentik's MANAGED email scope, which hardcodes email_verified=false.
+# Everyone enrolls via GitHub (which only shares verified emails), so treat a
+# GitHub-sourced user as email-verified. Required by kube-apiserver OIDC, which
+# rejects tokens with email_verified=false when username-claim=email.
+# MUST stay in blueprints/ (not configmap-only) so blueprint→CM mirrors can't drop it.
+- attrs:
+    expression: "return {\n    \"email\": request.user.email,\n    \"email_verified\": \"Github\" in request.user.attributes.get(\"goauthentik.io/user/sources\", []),\n}"
+  conditions: []
+  identifiers:
+    managed: goauthentik.io/providers/oauth2/scope-email
+  model: authentik_providers_oauth2.scopemapping
+  permissions: []
+  state: present

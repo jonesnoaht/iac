@@ -36,6 +36,19 @@ entries:
   model: authentik_core.group
   permissions: []
   state: present
+# Kubernetes Users — referenced by kube-oidc-rbac.yaml. Was previously
+# configmap-only; keep it in blueprints/ so the mirror cannot de-manage it.
+- attrs:
+    attributes: {}
+    name: Kubernetes Users
+    users:
+    - !Find [authentik_core.user, [username, TannerLew]]
+  conditions: []
+  identifiers:
+    pk: 7a8b9c0d-1e2f-3456-7890-abcdef123456
+  model: authentik_core.group
+  permissions: []
+  state: present
 # Florida Man Bioscience (FMB) — genomics collaborators (Curtis, Tom).
 # Grants Grafana Editor org-role (via kube-prometheus-stack role_attribute_path,
 # name-based) + interactive Khemeia web OIDC access. Admin-on-Swamp-folder is a

@@ -103,33 +103,6 @@ spec:
   proxied: true
   ttl: 1
   interval: 5m
----
-# cytogate -> public portfolio landing (CytoGate product)
-# (rke2/tooling/flux/theswamp/portfolio-landings.yaml).
-apiVersion: cloudflare-operator.io/v1
-kind: DNSRecord
-metadata:
-  name: flmanbiosci-cytogate
-  namespace: kube-system
-spec:
-  name: cytogate.flmanbiosci.net
-  type: A
-  content: 69.180.240.158
-  proxied: true
-  ttl: 1
-  interval: 5m
----
-# u4u-privacy -> public portfolio landing (u4u privacy product)
-# (rke2/tooling/flux/theswamp/portfolio-landings.yaml).
-apiVersion: cloudflare-operator.io/v1
-kind: DNSRecord
-metadata:
-  name: flmanbiosci-u4u-privacy
-  namespace: kube-system
-spec:
-  name: u4u-privacy.flmanbiosci.net
-  type: A
-  content: 69.180.240.158
-  proxied: true
-  ttl: 1
-  interval: 5m
+# cytogate + u4u-privacy DNS are Flux-managed CNAMEs in
+# rke2/tooling/flux/theswamp/portfolio-landings.yaml — do NOT re-add A
+# records here (Cloudflare rejects A+CNAME on the same name).
