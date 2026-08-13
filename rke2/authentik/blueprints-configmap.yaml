@@ -291,10 +291,14 @@ data:
     # HTTPRoute → authentik-server → u4u-edge (path-split /api/v1 + frontend).
     # Access: Florida Man Bioscience | Infrastructure.
     #
+    # Canonical API shape for FMB products:
+    #   https://{product-host}/api/v1/...
+    # Prefer: https://peptodyssey.flmanbiosci.net/api/v1/...
+    # (same host as the UI — valid TLS under *.flmanbiosci.net; no double subdomain.)
+    #
     # Company apex flmanbiosci.net is PUBLIC (no provider here).
-    # API: api-peptodyssey.flmanbiosci.net (+ legacy api.flmanbiosci.net) DIRECT.
-    #   (single-label host — Cloudflare Universal SSL / *.flmanbiosci.net certs
-    #    do not cover double subdomains like api.peptodyssey.*)
+    # Legacy dual-routes (no SSO): api.flmanbiosci.net (unprefixed),
+    #   flmanbiosci.net/api/v1/* (prefix stripped).
     #
     # Unauthenticated paths on the product host:
     #   /privacy and /peptodyssey/privacy  (App Store / TestFlight)

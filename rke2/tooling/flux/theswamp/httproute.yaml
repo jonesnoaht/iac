@@ -2,8 +2,12 @@
 # ---------------------------------------------------------------------------
 # PeptOdyssey product — peptodyssey.flmanbiosci.net
 # Authentik full-proxy → u4u-edge (path-split /api/v1 + frontend).
-# FMB | Infrastructure groups. Public: /privacy, /peptodyssey/privacy,
-# /api/v1/health, /api/v1/healthkit(/|$)
+# FMB | Infrastructure groups.
+#
+# Canonical API shape (all FMB product hosts):  https://{host}/api/v1/...
+# Prefer: https://peptodyssey.flmanbiosci.net/api/v1/...
+# Public (Authentik skip): /privacy, /peptodyssey/privacy,
+#   /api/v1/health, /api/v1/healthkit(/|$)
 # ---------------------------------------------------------------------------
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -54,66 +58,13 @@ spec:
   interval: 5m
 ---
 # ---------------------------------------------------------------------------
-# PeptOdyssey API direct — api-peptodyssey.flmanbiosci.net
-# Single-label host so Cloudflare Universal SSL + origin *.flmanbiosci.net
-# cover TLS. Device tokens / HealthKit / scripts. No browser SSO.
-# Strip inbound X-authentik-* so clients cannot spoof staff identity.
-# ---------------------------------------------------------------------------
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: peptodyssey-api
-  namespace: theswamp
-spec:
-  parentRefs:
-    - name: hwcopeland-gateway
-      namespace: kube-system
-      sectionName: flmanbiosci-https
-  hostnames:
-    - "api-peptodyssey.flmanbiosci.net"
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      filters:
-        - type: RequestHeaderModifier
-          requestHeaderModifier:
-            remove:
-              - X-authentik-uid
-              - X-authentik-username
-              - X-authentik-email
-              - X-authentik-name
-              - X-authentik-groups
-              - X-Authentik-Uid
-              - X-Authentik-Username
-              - X-Authentik-Email
-              - X-Authentik-Name
-              - X-Authentik-Groups
-      backendRefs:
-        - name: u4u-engine
-          port: 8000
----
-apiVersion: cloudflare-operator.io/v1
-kind: DNSRecord
-metadata:
-  name: peptodyssey-api
-  namespace: theswamp
-spec:
-  name: api-peptodyssey.flmanbiosci.net
-  type: CNAME
-  content: flmanbiosci.net
-  proxied: true
-  ttl: 1
-  interval: 5m
----
-# ---------------------------------------------------------------------------
 # Company apex — flmanbiosci.net (PUBLIC, no Authentik)
 # Serves Next frontend (marketing at /). Product UI paths 301 via gateway
 # to peptodyssey.flmanbiosci.net. Legacy privacy path 301 to product /privacy.
 #
 # /api/v1 stays a REAL dual-route to u4u-engine (not a cross-host 301):
 # URLSession/iOS drop Authorization on cross-host redirects and turn POST→GET.
+# Prefer product host: https://peptodyssey.flmanbiosci.net/api/v1/...
 # ---------------------------------------------------------------------------
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -224,7 +175,8 @@ spec:
             hostname: peptodyssey.flmanbiosci.net
             statusCode: 301
 ---
-# Legacy api.flmanbiosci.net kept as alias → same API (iOS / docs still reference it).
+# Legacy api.flmanbiosci.net — unprefixed dual-route (device tokens / old scripts).
+# Prefer https://peptodyssey.flmanbiosci.net/api/v1/... for new clients.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

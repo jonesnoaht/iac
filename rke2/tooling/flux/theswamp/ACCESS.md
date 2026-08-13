@@ -20,11 +20,14 @@ Authentik **Florida Man Bioscience** group + `kubelogin` against
 
 ## Host topology (PeptOdyssey subdomain)
 
+**API convention (all FMB product hosts):** `https://{host}/api/v1/...`  
+**Preferred PeptOdyssey API:** `https://peptodyssey.flmanbiosci.net/api/v1/...`
+
 | Host | Auth | Backend |
 |------|------|---------|
 | `https://peptodyssey.flmanbiosci.net` | Authentik full-proxy (FMB \| Infrastructure) | `u4u-edge` → FE + `/api/v1` |
-| `https://api-peptodyssey.flmanbiosci.net` | none (device token / scripts) | `u4u-engine:8000` |
-| `https://api.flmanbiosci.net` | none (legacy alias) | same API |
+| `https://peptodyssey.flmanbiosci.net/api/v1/*` | SSO except health/healthkit skip | edge → engine (prefix stripped) |
+| `https://api.flmanbiosci.net` | none (legacy unprefixed alias) | `u4u-engine:8000` |
 | `https://flmanbiosci.net` | **public** company | frontend marketing + product UI 301s |
 | `https://flmanbiosci.net/api/v1/*` | none (legacy dual-route) | direct `u4u-engine` (prefix stripped) |
 | `https://app.flmanbiosci.net` | 301 → product host | — |
@@ -39,10 +42,14 @@ Authentik **Florida Man Bioscience** group + `kubelogin` against
 | `https://drug-design.flmanbiosci.net` | **public** lab platform | next-gen drug design |
 | `https://drug-design.flmanbiosci.net/protein-chemistry/` | **public** page | VR protein chemistry |
 
-### Why `api-peptodyssey` (hyphen), not `api.peptodyssey`
+### Why path-style API (not `api.*` product subdomain)
 
-X.509 / Cloudflare Universal SSL wildcards match **one** label. `*.flmanbiosci.net`
-covers `api-peptodyssey.flmanbiosci.net` but **not** `api.peptodyssey.flmanbiosci.net`.
+X.509 / Cloudflare Universal SSL wildcards match **one** label.
+`peptodyssey.flmanbiosci.net` is covered; `api.peptodyssey.flmanbiosci.net` is not.
+Putting the API under `/api/v1` on the product host keeps one cert, one host, and
+matches how the edge already path-splits frontend vs engine.
+
+Future product APIs should follow the same shape: `https://{product}.flmanbiosci.net/api/v1/...`.
 
 ### Public on product host (Authentik `skip_path_regex`)
 
@@ -58,21 +65,23 @@ covers `api-peptodyssey.flmanbiosci.net` but **not** `api.peptodyssey.flmanbiosc
 ### iOS / non-browser API clients
 
 - Privacy: prefer `https://peptodyssey.flmanbiosci.net/privacy` (legacy apex path still redirects)
-- **Preferred API base:** `https://api-peptodyssey.flmanbiosci.net` (unprefixed paths: `/health`, `/healthkit/samples`)
-- **Legacy dual-routes that still work without cross-host redirects:**
+- **Preferred API base:** `https://peptodyssey.flmanbiosci.net/api/v1`  
+  (engine paths after prefix strip: `/health`, `/healthkit/samples`, …)
+- HealthKit/enroll hit Authentik **skip** paths (device bearer stays end-to-end)
+- **Legacy dual-routes** (still real backends, not cross-host 301s):
   - `https://api.flmanbiosci.net/...` (unprefixed)
   - `https://flmanbiosci.net/api/v1/...` (prefix stripped at the gateway)
-- Do **not** rely on a 301 from apex `/api/v1` to the product host for POST/auth
-  clients — URLSession converts POST→GET and strips `Authorization` on cross-host
-  redirects. Same-origin `/api/v1` on the product host is fine for browser OIDC.
+- Do **not** 301 API traffic across hosts for POST/auth clients — URLSession
+  converts POST→GET and strips `Authorization` on cross-host redirects.
 - Device-code OIDC app remains `peptodyssey` at
   `https://auth.hwcopeland.net/application/o/peptodyssey/`
 
 ### Identity headers
 
-Direct API HTTPRoutes and `u4u-edge` strip inbound `X-authentik-*`. The engine
-must not trust client-supplied Authentik headers for identity; use OIDC Bearer
-or device tokens. Staff browser access is gated by Authentik at the product host.
+Direct legacy API HTTPRoutes and `u4u-edge` strip inbound `X-authentik-*`. The
+engine must not trust client-supplied Authentik headers for identity; use OIDC
+Bearer or device tokens. Staff browser access is gated by Authentik at the
+product host (SSO cookie); API identity is still Bearer/device-token based.
 
 Blueprints: `rke2/authentik/blueprints/` must stay mirrored in
 `blueprints-configmap.yaml` (including CM-only `providers-kubernetes.yaml`).
