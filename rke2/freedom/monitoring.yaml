@@ -1,0 +1,84 @@
+---
+# Scrape both freedom exporters. Lives in freedom; the stack's
+# serviceMonitorNamespaceSelector is empty (= all namespaces), and the
+# release label gets it loaded.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: freedom-exporters
+  namespace: freedom
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [freedom]
+  selector:
+    matchExpressions:
+      - { key: app, operator: In, values: [sql-exporter, postgres-exporter] }
+  endpoints:
+    - { port: metrics, interval: 30s }
+---
+# HPLC failure detection. severity: critical → existing Alertmanager
+# email-operator receiver (→ hampton888@gmail.com). Thresholds are empirical
+# (see sql-exporter-config.yaml header): stroke_amp 2.0 sits in the clean
+# 1.25-3.25 gap between healthy (<=1) and failed (3.3-5.5) populations.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hplc-detection
+  namespace: freedom
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: hplc-pump
+      rules:
+        # Full pump-head failure: pulsation spike AND pressure collapse.
+        # This is the signature of the 8/9 and 8/12 Helsa failures.
+        - alert: HplcPumpHeadFailure
+          expr: hplc_last_stroke_amp > 2 and hplc_last_p2min < 0.8 * hplc_p2min_baseline
+          for: 0m
+          labels: { severity: critical }
+          annotations:
+            summary: "HPLC pump head FAILURE on {{ $labels.pc }} (stroke {{ $value | printf \"%.1f\" }})"
+            description: >-
+              Most recent run on {{ $labels.pc }} shows pump-stroke amplitude
+              {{ with printf "hplc_last_stroke_amp{pc='%s'}" $labels.pc | query }}{{ . | first | value | printf "%.1f" }}{{ end }}
+              (healthy <1) with pressure collapsed below 80% of baseline — a dead
+              pump head. Injections/backpressure unreliable until serviced. This
+              is the alert that would have caught the 8/12 failure within 20 min.
+        # Developing fault / debris: pulsation elevated but pressure still holding.
+        # Caught the run that PRECEDED the 8/9 blowout. Earlier warning.
+        - alert: HplcPumpStrokeAnomaly
+          expr: hplc_last_stroke_amp > 2 and hplc_last_p2min >= 0.8 * hplc_p2min_baseline
+          for: 0m
+          labels: { severity: warning }
+          annotations:
+            summary: "HPLC pump stroke anomaly on {{ $labels.pc }} (developing fault)"
+            description: >-
+              Elevated pump-stroke amplitude with pressure still normal on
+              {{ $labels.pc }} — a developing head fault / debris event that may
+              precede full failure. Inspect before the next batch.
+    - name: hplc-pipeline
+      rules:
+        - alert: HplcParseErrors
+          expr: hplc_parse_errors > 20
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: "HPLC parser error count elevated ({{ $value }})"
+            description: "More than 20 .lcd files failed to parse. Some are benign (blank/aborted runs); check if the count is climbing."
+        - alert: HplcBacklogStuck
+          expr: hplc_backlog_files > 50
+          for: 30m
+          labels: { severity: warning }
+          annotations:
+            summary: "HPLC parse backlog not draining ({{ $value }} pending)"
+            description: "Pending files >50 for 30m — the parser may be stuck or the DB unreachable."
+        - alert: HplcExporterDown
+          expr: up{job="freedom-exporters"} == 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "HPLC metrics exporter down ({{ $labels.pod }})"
+            description: "sql/postgres exporter unreachable >5m — pump-failure detection is blind until it recovers."

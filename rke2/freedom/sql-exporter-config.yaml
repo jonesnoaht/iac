@@ -1,0 +1,72 @@
+# sql_exporter domain queries. Rendered into the Secret `sql-exporter-config`
+# with the DB password substituted (see README). Metrics keyed on `pc` (stable
+# transport identity) because the `instrument` field bifurcates HPLC/DESKTOP-*.
+#
+# Detection basis (empirical, 3,602 runs): healthy stroke_amp <=1.0, failures
+# 3.3-5.5, EMPTY gap 1.25-3.25 → a flat threshold of 2.0 separates perfectly and
+# is method-independent. p_2min is the severity confirmator, not the trigger.
+global:
+  scrape_timeout: 10s
+  min_interval: 30s
+target:
+  data_source_name: 'postgres://hplc:__PGPASS__@hplc-postgres.freedom.svc:5432/hplc?sslmode=disable'
+  collectors: [hplc]
+collectors:
+  - collector_name: hplc
+    metrics:
+      - metric_name: hplc_last_stroke_amp
+        type: gauge
+        help: 'stroke_amp (pump-stroke FFT amplitude) of the most recent run per pc; >2 = fault'
+        key_labels: [pc]
+        values: [stroke_amp]
+        query: |
+          SELECT DISTINCT ON (pc) pc, stroke_amp
+          FROM runs WHERE stroke_amp IS NOT NULL ORDER BY pc, acq_at DESC
+      - metric_name: hplc_last_p2min
+        type: gauge
+        help: 'p_2min (pressure at 2 min) of the most recent run per pc'
+        key_labels: [pc]
+        values: [p_2min]
+        query: |
+          SELECT DISTINCT ON (pc) pc, p_2min
+          FROM runs WHERE p_2min IS NOT NULL ORDER BY pc, acq_at DESC
+      - metric_name: hplc_stroke_baseline
+        type: gauge
+        help: 'median stroke_amp over all ok runs per pc'
+        key_labels: [pc]
+        values: [v]
+        query: |
+          SELECT pc, percentile_cont(0.5) WITHIN GROUP (ORDER BY stroke_amp) v
+          FROM runs WHERE stroke_amp IS NOT NULL GROUP BY pc
+      - metric_name: hplc_p2min_baseline
+        type: gauge
+        help: 'median p_2min over all ok runs per pc'
+        key_labels: [pc]
+        values: [v]
+        query: |
+          SELECT pc, percentile_cont(0.5) WITHIN GROUP (ORDER BY p_2min) v
+          FROM runs WHERE p_2min IS NOT NULL GROUP BY pc
+      - metric_name: hplc_runs_total
+        type: gauge
+        help: 'parsed runs per pc'
+        key_labels: [pc]
+        values: [n]
+        query: 'SELECT pc, count(*) n FROM runs GROUP BY pc'
+      - metric_name: hplc_last_run_timestamp_seconds
+        type: gauge
+        help: 'acq_at epoch of newest run per pc (instrument clock — labeling only, NOT freshness)'
+        key_labels: [pc]
+        values: [ts]
+        query: |
+          SELECT DISTINCT ON (pc) pc, extract(epoch FROM acq_at) ts
+          FROM runs WHERE acq_at IS NOT NULL ORDER BY pc, acq_at DESC
+      - metric_name: hplc_parse_errors
+        type: gauge
+        help: 'files in error state'
+        values: [n]
+        query: "SELECT count(*) n FROM files WHERE status='error'"
+      - metric_name: hplc_backlog_files
+        type: gauge
+        help: 'files pending parse'
+        values: [n]
+        query: "SELECT count(*) n FROM files WHERE status='pending'"

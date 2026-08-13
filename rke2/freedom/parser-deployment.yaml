@@ -1,0 +1,77 @@
+---
+# zot registry pull credentials for the freedom namespace, so kubelet can pull
+# zot.hwcopeland.net/freedom/hplc-parser. Same Bitwarden item as every other
+# namespace's zot-pull-secret.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: zot-pull-secret
+  namespace: freedom
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bitwarden-login
+  target:
+    name: zot-pull-secret
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/dockerconfigjson
+      engineVersion: v2
+      data:
+        .dockerconfigjson: |
+          {"auths":{"zot.hwcopeland.net":{"username":"{{ .username }}","password":"{{ .password }}","auth":"{{ printf "%s:%s" .username .password | b64enc }}"}}}
+  data:
+    - secretKey: username
+      remoteRef:
+        key: 766ec5c7-6aa8-419d-bb27-e5982872bc5b
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: 766ec5c7-6aa8-419d-bb27-e5982872bc5b
+        property: password
+---
+# The production Go parser. Replaces the PoC pip-on-start ConfigMap deployment
+# (parser.yaml). Image is pinned to the immutable sha tag by the build workflow.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hplc-parser
+  namespace: freedom
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hplc-parser
+  template:
+    metadata:
+      labels:
+        app: hplc-parser
+    spec:
+      imagePullSecrets:
+        - name: zot-pull-secret
+      containers:
+        - name: parser
+          image: zot.hwcopeland.net/freedom/hplc-parser:latest
+          env:
+            - { name: RAW_BUCKET, value: hplc-raw }
+            - { name: DERIVED_BUCKET, value: hplc-derived }
+            - { name: SCAN_INTERVAL, value: "300" }
+            - { name: MIN_AGE, value: "600" }
+            - name: S3_ENDPOINT
+              valueFrom: { secretKeyRef: { name: versitygw-parser-secret, key: endpoint } }
+            - name: S3_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: versitygw-parser-secret, key: access_key } }
+            - name: S3_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: versitygw-parser-secret, key: secret_key } }
+            - { name: PGHOST, value: hplc-postgres }
+            - { name: PGDATABASE, value: hplc }
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: hplc-postgres-secret, key: username } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: hplc-postgres-secret, key: password } }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "2", memory: 1Gi }

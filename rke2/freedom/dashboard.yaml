@@ -1,0 +1,68 @@
+---
+# Grafana dashboard for the HPLC platform. ConfigMap label grafana_dashboard=1
+# is hot-loaded by the grafana-sc-dashboard sidecar (NAMESPACE=ALL), so it can
+# live here in freedom. Datasource uid `hplc-postgres` (secret in monitor ns).
+#
+# x-axis uses acq_at (instrument clock — ~1h offset on Helsa, shape is right).
+# stroke_amp threshold line at 2.0 = the empirical healthy/failed boundary.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hplc-dashboard
+  namespace: freedom
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: HPLC
+data:
+  hplc.json: |
+    {
+      "title": "HPLC Instruments",
+      "uid": "hplc-instruments",
+      "editable": true,
+      "timezone": "browser",
+      "time": {"from": "now-30d", "to": "now"},
+      "refresh": "5m",
+      "schemaVersion": 39,
+      "templating": {"list": [
+        {"name": "pc", "type": "query", "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "query": "SELECT DISTINCT pc FROM runs ORDER BY 1", "multi": true, "includeAll": true, "current": {"text": "All", "value": "$__all"}}
+      ]},
+      "panels": [
+        {"id": 1, "type": "stat", "title": "Pump status — latest run", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT DISTINCT ON (pc) pc AS metric, stroke_amp AS value FROM runs WHERE stroke_amp IS NOT NULL AND pc IN ($pc) ORDER BY pc, acq_at DESC"}],
+         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/"}, "textMode": "value_and_name", "colorMode": "background"},
+         "fieldConfig": {"defaults": {"unit": "none", "decimals": 2, "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 2}]}}}},
+
+        {"id": 2, "type": "stat", "title": "Runs parsed", "gridPos": {"h": 3, "w": 4, "x": 8, "y": 0},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT count(*) FROM runs WHERE pc IN ($pc)"}],
+         "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}}}},
+        {"id": 3, "type": "stat", "title": "Parse errors", "gridPos": {"h": 3, "w": 4, "x": 12, "y": 0},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT count(*) FROM files WHERE status='error'"}],
+         "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 20}]}, "color": {"mode": "thresholds"}}}},
+        {"id": 4, "type": "stat", "title": "Backlog", "gridPos": {"h": 3, "w": 4, "x": 8, "y": 3},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT count(*) FROM files WHERE status='pending'"}],
+         "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}]}, "color": {"mode": "thresholds"}}}},
+
+        {"id": 10, "type": "timeseries", "title": "stroke_amp (pump health) — threshold 2.0 = fault", "gridPos": {"h": 9, "w": 12, "x": 0, "y": 6},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "time_series", "rawSql": "SELECT acq_at AS time, pc AS metric, stroke_amp AS value FROM runs WHERE $__timeFilter(acq_at) AND stroke_amp IS NOT NULL AND pc IN ($pc) ORDER BY acq_at"}],
+         "fieldConfig": {"defaults": {"custom": {"drawStyle": "points", "pointSize": 4, "lineWidth": 1},
+            "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 2}]},
+            "custom.thresholdsStyle": {"mode": "line"}}}},
+
+        {"id": 11, "type": "timeseries", "title": "p_2min (pressure at 2 min, psi)", "gridPos": {"h": 9, "w": 12, "x": 12, "y": 6},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "time_series", "rawSql": "SELECT acq_at AS time, pc AS metric, p_2min AS value FROM runs WHERE $__timeFilter(acq_at) AND p_2min IS NOT NULL AND pc IN ($pc) ORDER BY acq_at"}],
+         "fieldConfig": {"defaults": {"unit": "none", "custom": {"drawStyle": "points", "pointSize": 4}}}},
+
+        {"id": 20, "type": "table", "title": "Suspect runs (stroke_amp > 1.5)", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 15},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT acq_at, pc, round(stroke_amp::numeric,2) AS stroke, p_2min, ripple, max_drop, substring(path from '[^/]+\\.lcd$') AS file FROM runs WHERE stroke_amp > 1.5 AND pc IN ($pc) ORDER BY acq_at DESC LIMIT 100"}]}
+      ]
+    }

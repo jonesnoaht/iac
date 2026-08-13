@@ -1,0 +1,95 @@
+---
+# HPLC store of record. Mirrors the chem/khemeia postgres pattern (Recreate
+# strategy on an RWO Longhorn volume). The `hplc-postgres-secret` is created
+# imperatively from the "freedom postgres (hplc)" Bitwarden item — NOT stored
+# in this repo. (Follow-up: convert to an ExternalSecret like
+# monitor/spotify-postgres, so rotation flows from Bitwarden.)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-hplc-postgres
+  namespace: freedom
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 40Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hplc-postgres
+  namespace: freedom
+spec:
+  selector:
+    matchLabels:
+      app: hplc-postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: hplc-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hplc-postgres-secret
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hplc-postgres-secret
+                  key: password
+            - name: POSTGRES_DB
+              value: hplc
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+              name: postgres
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "hplc"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "hplc"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pvc-hplc-postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hplc-postgres
+  namespace: freedom
+spec:
+  selector:
+    app: hplc-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+  type: ClusterIP

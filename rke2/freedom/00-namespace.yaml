@@ -1,0 +1,18 @@
+---
+# freedom — Freedom Diagnostics HPLC data platform.
+#
+# Instrument .lcd files arrive in the versitygw bucket hplc-raw (on the TrueNAS
+# box). This namespace owns the downstream pipeline that runs IN the cluster:
+#   - hplc-postgres      : store of record (per-run scalar metrics + blob refs)
+#   - hplc-parser        : pulls new .lcd from versitygw (internal Service,
+#                          no Cloudflare), decodes, writes scalars→postgres and
+#                          derived blobs→hplc-derived bucket on the box
+#   - sql-exporter       : domain queries on postgres → Prometheus (pump-failure)
+#   - postgres-exporter  : generic DB health metrics
+#   - Grafana datasource + dashboards + PrometheusRule → existing email alerts
+#
+# Deployment: MANUAL kubectl apply (not Flux), like the truenas bridge.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: freedom

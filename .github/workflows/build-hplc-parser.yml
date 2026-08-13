@@ -1,0 +1,98 @@
+---
+# Build the Go hplc-parser image on the arc-chem self-hosted runner (LAN access
+# to zot.hwcopeland.net), push to zot, then deploy to the freedom namespace.
+#
+# Required GitHub Actions secrets:
+#   ZOT_USERNAME / ZOT_PASSWORD   — zot.hwcopeland.net push creds
+#   KUBECONFIG_BASE64             — base64 kubeconfig with apply rights in freedom
+#
+# DB / S3 credentials are NOT GitHub secrets — they are Kubernetes Secrets
+# (hplc-postgres-secret, versitygw-parser-secret) already in the namespace.
+
+name: Build HPLC Parser
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rke2/freedom/parser-go/**'
+      - 'rke2/freedom/parser-deployment.yaml'
+      - '.github/workflows/build-hplc-parser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build parser image
+    runs-on: arc-chem
+    outputs:
+      sha_tag: ${{ steps.tags.outputs.sha_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to Zot registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: zot.hwcopeland.net
+          username: ${{ secrets.ZOT_USERNAME }}
+          password: ${{ secrets.ZOT_PASSWORD }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "sha_tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push parser image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: rke2/freedom/parser-go
+          file: rke2/freedom/parser-go/Dockerfile
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          # zot accepts only OCI manifest media types (Docker schema-2 → 415).
+          outputs: type=image,oci-mediatypes=true,push=true
+          tags: |
+            zot.hwcopeland.net/freedom/hplc-parser:${{ steps.tags.outputs.sha_tag }}
+            zot.hwcopeland.net/freedom/hplc-parser:latest
+
+  deploy:
+    name: Deploy to Kubernetes
+    needs: [build]
+    runs-on: arc-chem
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Apply manifests and roll out
+        env:
+          KUBECONFIG_BASE64: ${{ secrets.KUBECONFIG_BASE64 }}
+          SHA_TAG: ${{ needs.build.outputs.sha_tag }}
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION="v1.31.2"
+          curl -fsSL -o /tmp/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x /tmp/kubectl
+          mkdir -p "$HOME/.kube"
+          echo "$KUBECONFIG_BASE64" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+          cd rke2/freedom
+          /tmp/kubectl apply -f parser-deployment.yaml
+          # Pin to the immutable sha tag and wait for rollout.
+          /tmp/kubectl -n freedom set image deployment/hplc-parser \
+            parser="zot.hwcopeland.net/freedom/hplc-parser:${SHA_TAG}"
+          /tmp/kubectl -n freedom rollout status deployment/hplc-parser --timeout=180s
+          # Only once the Go parser is healthy, retire the PoC ConfigMap (the new
+          # pod spec no longer mounts it). Ordered last so a failed rollout never
+          # strands the running parser.
+          /tmp/kubectl -n freedom delete configmap hplc-parser-code --ignore-not-found

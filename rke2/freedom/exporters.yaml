@@ -1,0 +1,88 @@
+---
+# Two exporters feeding the existing kube-prometheus-stack:
+#   sql-exporter      — DOMAIN metrics: per-pc latest stroke_amp/p_2min +
+#                       baselines + backlog/errors. Drives the pump-fault alert.
+#   postgres-exporter — generic DB health (connections, size, up).
+# Both scraped via the ServiceMonitor in servicemonitor.yaml.
+#
+# The sql-exporter config carries the DB DSN (with password), so it lives in a
+# Secret, rendered imperatively from the hplc-postgres password — NOT in repo.
+# Regenerate with hack in README after any query change.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sql-exporter
+  namespace: freedom
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sql-exporter }
+  template:
+    metadata:
+      labels: { app: sql-exporter }
+    spec:
+      containers:
+        - name: sql-exporter
+          image: burningalchemist/sql_exporter:0.16.0
+          args: ["-config.file=/etc/sql_exporter/config.yaml"]
+          ports:
+            - { containerPort: 9399, name: metrics }
+          volumeMounts:
+            - { name: cfg, mountPath: /etc/sql_exporter }
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+      volumes:
+        - name: cfg
+          secret: { secretName: sql-exporter-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sql-exporter
+  namespace: freedom
+  labels: { app: sql-exporter }
+spec:
+  selector: { app: sql-exporter }
+  ports:
+    - { port: 9399, targetPort: 9399, name: metrics }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  namespace: freedom
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres-exporter }
+  template:
+    metadata:
+      labels: { app: postgres-exporter }
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+          env:
+            - name: DATA_SOURCE_URI
+              value: "hplc-postgres.freedom.svc:5432/hplc?sslmode=disable"
+            - name: DATA_SOURCE_USER
+              valueFrom: { secretKeyRef: { name: hplc-postgres-secret, key: username } }
+            - name: DATA_SOURCE_PASS
+              valueFrom: { secretKeyRef: { name: hplc-postgres-secret, key: password } }
+          ports:
+            - { containerPort: 9187, name: metrics }
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-exporter
+  namespace: freedom
+  labels: { app: postgres-exporter }
+spec:
+  selector: { app: postgres-exporter }
+  ports:
+    - { port: 9187, targetPort: 9187, name: metrics }
