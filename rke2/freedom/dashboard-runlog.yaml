@@ -1,0 +1,60 @@
+---
+# HPLC Run Log — rolling, clickable table of runs. Failed/fault runs go red,
+# RUSH/RERUN are badged. Clicking a run's sample opens the Run Detail dashboard
+# for that exact file. grafana_dashboard sidecar (NAMESPACE=ALL) loads it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hplc-dashboard-runlog
+  namespace: freedom
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: HPLC
+data:
+  hplc-runlog.json: |
+    {
+      "title": "HPLC Run Log",
+      "uid": "hplc-run-log",
+      "editable": true,
+      "time": {"from": "now-7d", "to": "now"},
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "templating": {"list": [
+        {"name": "instrument", "type": "query", "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "query": "SELECT DISTINCT instrument FROM runs ORDER BY 1", "includeAll": true, "allValue": "%",
+         "current": {"text": "All", "value": "$__all"}}
+      ]},
+      "panels": [
+        {"id": 1, "type": "table", "title": "Runs (newest first — click a sample to open its detail)",
+         "gridPos": {"h": 24, "w": 24, "x": 0, "y": 0},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT r.acq_at AS \"time\", r.instrument, substring(r.path from '([^/]+)\\.lcd$') AS sample, round(r.stroke_amp::numeric,2) AS stroke, round(r.p_2min) AS p_2min, f.status, CASE WHEN r.is_rush THEN 'RUSH' ELSE '' END AS rush, CASE WHEN r.is_rerun THEN 'RR' ELSE '' END AS rerun, r.path FROM runs r JOIN files f USING(path) WHERE $__timeFilter(r.acq_at) AND r.instrument LIKE '$instrument' ORDER BY r.acq_at DESC LIMIT 1000"}],
+         "options": {"sortBy": [{"displayName": "time", "desc": true}], "cellHeight": "sm", "footer": {"show": false}},
+         "fieldConfig": {
+           "defaults": {"custom": {"filterable": true, "align": "auto"}},
+           "overrides": [
+             {"matcher": {"id": "byName", "options": "stroke"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}},
+               {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+                 {"color": "green", "value": null}, {"color": "orange", "value": 1.5}, {"color": "red", "value": 2}]}}]},
+             {"matcher": {"id": "byName", "options": "status"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+               {"id": "mappings", "value": [{"type": "value", "options": {
+                 "error": {"color": "red", "text": "ERROR", "index": 0},
+                 "ok": {"color": "dark-green", "text": "ok", "index": 1},
+                 "pending": {"color": "yellow", "text": "pending", "index": 2}}}]}]},
+             {"matcher": {"id": "byName", "options": "rush"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+               {"id": "mappings", "value": [{"type": "value", "options": {"RUSH": {"color": "blue", "index": 0}}}]}]},
+             {"matcher": {"id": "byName", "options": "rerun"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+               {"id": "mappings", "value": [{"type": "value", "options": {"RR": {"color": "orange", "index": 0}}}]}]},
+             {"matcher": {"id": "byName", "options": "sample"}, "properties": [
+               {"id": "links", "value": [{"title": "Open run detail", "url": "/d/hplc-run-detail?var-path=${__data.fields.path}"}]}]},
+             {"matcher": {"id": "byName", "options": "path"}, "properties": [{"id": "custom.hidden", "value": true}]}
+           ]
+         }
+        }
+      ]
+    }

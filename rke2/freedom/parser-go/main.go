@@ -172,7 +172,9 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 	if err != nil {
 		return err
 	}
-	dkey := key + ".npz"
+	// Namespace derived objects by artifact type so keys never collide when
+	// other derived types (chromatogram/, spectra/, ...) are added later.
+	dkey := "pressure/" + key + ".npz"
 	if _, err := s3.PutObject(ctx, cfg.Derived, dkey, bytesReader(npz), int64(len(npz)),
 		minio.PutObjectOptions{ContentType: "application/octet-stream"}); err != nil {
 		return err
