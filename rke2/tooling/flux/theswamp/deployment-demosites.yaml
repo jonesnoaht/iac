@@ -21,7 +21,7 @@ spec:
         - name: zot-pull-secret
       containers:
         - name: demo-sites
-          image: zot.hwcopeland.net/florida-man-bioscience/demo-sites:main@sha256:29af7786bed1add8d7cce0790ff0c14b6d71dc3012e9d0fb8bac9c2562cd5cff # {"$imagepolicy": "tooling:demo-sites"}
+          image: zot.hwcopeland.net/florida-man-bioscience/demo-sites:main@sha256:785f0f2d7969d51881588dd670f7810893b4adcc58c41ee1fca901147188b57f # {"$imagepolicy": "tooling:demo-sites"}
           ports:
             - containerPort: 80
           livenessProbe:

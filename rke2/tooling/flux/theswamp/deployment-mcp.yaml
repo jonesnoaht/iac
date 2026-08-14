@@ -19,7 +19,7 @@ spec:
         - name: zot-pull-secret
       containers:
         - name: demo-mcp
-          image: zot.hwcopeland.net/florida-man-bioscience/demo-mcp:main@sha256:f474e8384dc6df8e37d817079b8e6241b175ca71c966042e31b384e51b4ca364 # {"$imagepolicy": "tooling:demo-mcp"}
+          image: zot.hwcopeland.net/florida-man-bioscience/demo-mcp:main@sha256:5e52215fa545257aa549f2af5d39965152dd78cff562df30f40a0bb2322e5cd8 # {"$imagepolicy": "tooling:demo-mcp"}
           ports:
             - containerPort: 8036
           env:
