@@ -16,7 +16,9 @@ grafana:
     # AppMana storage-usage dashboard (monitor/storage-dashboard/).
     # Comma-separate to add more: <id>@<version>@<url> for external
     # .zip, bare <id> for Grafana catalog plugins.
-    GF_PLUGINS_PREINSTALL: "appmana-storage-breakdown-panel@0.1.1@https://github.com/AppMana/kubernetes-storage-dashboard-grafana/releases/download/v0.1.1/appmana-storage-breakdown-panel-0.1.1.zip"
+    # volkovlabs-table-panel = Business Table (signed catalog plugin) — used by
+    # the freedom/HPLC Run Log for rounded cells + RUSH/RR tag chips.
+    GF_PLUGINS_PREINSTALL: "appmana-storage-breakdown-panel@0.1.1@https://github.com/AppMana/kubernetes-storage-dashboard-grafana/releases/download/v0.1.1/appmana-storage-breakdown-panel-0.1.1.zip,volkovlabs-table-panel"
   grafana.ini:
     plugins:
       # v0.1.x of the AppMana panel ships unsigned. Comma-separate
