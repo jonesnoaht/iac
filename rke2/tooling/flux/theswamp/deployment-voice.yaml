@@ -19,7 +19,7 @@ spec:
         - name: zot-pull-secret
       containers:
         - name: voice-agent
-          image: zot.hwcopeland.net/florida-man-bioscience/voice-agent:main@sha256:1ed6cbe938b92bd01d35e233f68169b87b0d4bb5e2cca59a3396f982817dbb9f # {"$imagepolicy": "tooling:voice-agent"}
+          image: zot.hwcopeland.net/florida-man-bioscience/voice-agent:main@sha256:6f7f1567759824c5befa88fa33c9cd3a0db0a68bdb916868d4ddcb40be747ecf # {"$imagepolicy": "tooling:voice-agent"}
           ports:
             - containerPort: 8035
           envFrom:
