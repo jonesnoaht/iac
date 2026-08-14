@@ -104,6 +104,30 @@ func smoothSame(seg []float64, w int) []float64 {
 	return out
 }
 
+// interpAt linearly interpolates p at time=target (t assumed monotonic).
+func interpAt(t, p []float64, target float64) float64 {
+	if len(t) == 0 {
+		return 0
+	}
+	if target <= t[0] {
+		return p[0]
+	}
+	if target >= t[len(t)-1] {
+		return p[len(p)-1]
+	}
+	for i := 1; i < len(t); i++ {
+		if t[i] >= target {
+			span := t[i] - t[i-1]
+			if span == 0 {
+				return p[i]
+			}
+			frac := (target - t[i-1]) / span
+			return p[i-1] + frac*(p[i]-p[i-1])
+		}
+	}
+	return p[len(p)-1]
+}
+
 func argMinAbs(t []float64, target float64) int {
 	best, bi := math.Inf(1), 0
 	for i, v := range t {
@@ -212,16 +236,7 @@ func computeMetrics(streams map[string][]byte) (*Metrics, []Channel, error) {
 	m.PMax = fptr(round(hi, 1))
 	m.PMin = fptr(round(lo, 1))
 
-	i2 := argMinAbs(t, 2.0)
-	a := i2 - 15
-	if a < 0 {
-		a = 0
-	}
-	b := i2 + 15
-	if b > len(p) {
-		b = len(p)
-	}
-	m.P2Min = fptr(round(mean(p[a:b]), 1))
+	m.P2Min = fptr(round(interpAt(t, p, 2.0), 1))
 
 	seg := segmentWhere(t, p, 2, 14)
 	if len(seg) > 120 {

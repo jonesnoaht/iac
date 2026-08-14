@@ -30,7 +30,7 @@ data:
         {"id": 1, "type": "table", "transparent": true,
          "gridPos": {"h": 24, "w": 24, "x": 0, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT to_char(r.acq_at,'MM-DD HH24:MI') AS \"ran\", r.instrument, split_part(substring(r.path from '([^/]+)\\.lcd$'),'_',1) AS accession, CASE WHEN f.status='error' THEN 'ERROR' WHEN r.is_fault THEN 'FAULT' ELSE 'OK' END AS verdict, round(r.stroke_amp::numeric,2) AS pump, NULLIF(trim(concat_ws(' ', CASE WHEN r.is_rush THEN 'RUSH' END, CASE WHEN r.is_rerun THEN 'RR' END)),'') AS tags, r.path FROM runs r JOIN files f USING(path) WHERE $__timeFilter(r.acq_at) AND r.instrument LIKE '$instrument' ORDER BY r.acq_at DESC LIMIT 1000"}],
+         "targets": [{"format": "table", "rawSql": "SELECT * FROM (SELECT DISTINCT ON (r.instrument, split_part(substring(r.path from '([^/]+)\\.lcd$'),'_',1), r.acq_at) to_char(r.acq_at,'MM-DD HH24:MI') AS \"ran\", r.instrument, split_part(substring(r.path from '([^/]+)\\.lcd$'),'_',1) AS accession, CASE WHEN f.status='error' THEN 'ERROR' WHEN r.is_fault THEN 'FAULT' ELSE 'OK' END AS verdict, round(r.stroke_amp::numeric,2) AS pump, NULLIF(trim(concat_ws(' ', CASE WHEN r.is_rush THEN 'RUSH' END, CASE WHEN r.is_rerun THEN 'RR' END)),'') AS tags, r.path, r.acq_at AS _t FROM runs r JOIN files f USING(path) WHERE $__timeFilter(r.acq_at) AND r.instrument LIKE '$instrument' ORDER BY r.instrument, split_part(substring(r.path from '([^/]+)\\.lcd$'),'_',1), r.acq_at, r.path) d ORDER BY d._t DESC LIMIT 1000"}],
          "options": {"showHeader": true, "cellHeight": "md", "footer": {"show": false}},
          "fieldConfig": {
            "defaults": {"custom": {"filterable": false, "align": "center", "cellOptions": {"type": "auto"}}},
@@ -61,7 +61,8 @@ data:
                  {"type": "regex", "options": {"pattern": ".*RR.*", "result": {"color": "#89CFF0", "index": 0}}},
                  {"type": "regex", "options": {"pattern": ".*RUSH.*", "result": {"color": "#F4A259", "index": 1}}},
                  {"type": "special", "options": {"match": "null", "result": {"color": "transparent", "index": 2}}}]}]},
-             {"matcher": {"id": "byName", "options": "path"}, "properties": [{"id": "custom.hidden", "value": true}]}
+             {"matcher": {"id": "byName", "options": "path"}, "properties": [{"id": "custom.hidden", "value": true}]},
+             {"matcher": {"id": "byName", "options": "_t"}, "properties": [{"id": "custom.hidden", "value": true}]}
            ]
          }
         }

@@ -66,6 +66,10 @@ func main() {
 		validateFile(os.Args[2])
 		return
 	}
+	if len(os.Args) >= 3 && os.Args[1] == "pda" {
+		pdaFile(os.Args[2])
+		return
+	}
 	cfg := loadConfig()
 	ctx := context.Background()
 
@@ -179,16 +183,26 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 		minio.PutObjectOptions{ContentType: "application/octet-stream"}); err != nil {
 		return err
 	}
+	// Full 3D PDA matrix → chromatogram/<key>.npz. Non-fatal: a run without
+	// (or with unreadable) PDA data still gets its pressure metrics; chrom_key
+	// stays NULL and a later re-parse can fill it in.
+	var chromKey *string
+	if ckey, cerr := putChromatogram(ctx, cfg, s3, key, streams); cerr != nil {
+		log.Printf("chromatogram %s: %v", key, cerr)
+	} else if ckey != "" {
+		chromKey = &ckey
+	}
 	_, err = pool.Exec(ctx, `
 		INSERT INTO runs(path,instrument,system_id,acq_at,run_min,p_start,p_max,p_min,
-			p_2min,ripple,max_drop,stroke_amp,flow_med,flow_std,oven_med,trace_key)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			p_2min,ripple,max_drop,stroke_amp,flow_med,flow_std,oven_med,trace_key,chrom_key)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		ON CONFLICT(path) DO UPDATE SET
 			instrument=EXCLUDED.instrument, system_id=EXCLUDED.system_id, acq_at=EXCLUDED.acq_at,
 			run_min=EXCLUDED.run_min, p_2min=EXCLUDED.p_2min, stroke_amp=EXCLUDED.stroke_amp,
-			trace_key=EXCLUDED.trace_key`,
+			trace_key=EXCLUDED.trace_key,
+			chrom_key=COALESCE(EXCLUDED.chrom_key, runs.chrom_key)`,
 		key, inst, m.SystemID, m.AcqAt, m.RunMin, m.PStart, m.PMax, m.PMin,
-		m.P2Min, m.Ripple, m.MaxDrop, m.StrokeAmp, m.FlowMed, m.FlowStd, m.OvenMed, dkey)
+		m.P2Min, m.Ripple, m.MaxDrop, m.StrokeAmp, m.FlowMed, m.FlowStd, m.OvenMed, dkey, chromKey)
 	if err != nil {
 		return err
 	}

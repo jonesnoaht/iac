@@ -1,10 +1,6 @@
 ---
-# Grafana dashboard for the HPLC platform. ConfigMap label grafana_dashboard=1
-# is hot-loaded by the grafana-sc-dashboard sidecar (NAMESPACE=ALL), so it can
-# live here in freedom. Datasource uid `hplc-postgres` (secret in monitor ns).
-#
-# x-axis uses acq_at (instrument clock — ~1h offset on Helsa, shape is right).
-# stroke_amp threshold line at 2.0 = the empirical healthy/failed boundary.
+# HPLC Instruments — operational overview (pump health + pipeline). Datasource
+# uid `hplc-postgres`. x-axis uses acq_at (instrument clock; shape is right).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -29,40 +25,52 @@ data:
          "query": "SELECT DISTINCT instrument FROM runs ORDER BY 1", "multi": true, "includeAll": true, "current": {"text": "All", "value": "$__all"}}
       ]},
       "panels": [
-        {"id": 1, "type": "stat", "title": "Pump status — latest run", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+        {"id": 1, "type": "stat", "title": "Pump Health — Latest Run", "transparent": true,
+         "description": "Most recent run's pump-stroke amplitude per instrument. >2 = fault.",
+         "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT DISTINCT ON (instrument) instrument AS metric, stroke_amp AS value FROM runs WHERE stroke_amp IS NOT NULL AND instrument IN ($instrument) ORDER BY instrument, acq_at DESC"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/"}, "textMode": "value_and_name", "colorMode": "background"},
+         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^value$/"}, "textMode": "value_and_name", "colorMode": "value"},
          "fieldConfig": {"defaults": {"unit": "none", "decimals": 2, "thresholds": {"mode": "absolute", "steps": [
-            {"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 2}]}}}},
+            {"color": "green", "value": null}, {"color": "orange", "value": 1.5}, {"color": "red", "value": 2}]}}}},
 
-        {"id": 2, "type": "stat", "title": "Runs parsed", "gridPos": {"h": 3, "w": 4, "x": 8, "y": 0},
+        {"id": 2, "type": "stat", "title": "Runs", "transparent": true, "gridPos": {"h": 3, "w": 4, "x": 8, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT count(*) FROM runs WHERE instrument IN ($instrument)"}],
-         "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}}}},
-        {"id": 3, "type": "stat", "title": "Parse errors", "gridPos": {"h": 3, "w": 4, "x": 12, "y": 0},
+         "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "text"}}}},
+        {"id": 3, "type": "stat", "title": "Parse Errors", "transparent": true, "gridPos": {"h": 3, "w": 4, "x": 12, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT count(*) FROM files WHERE status='error'"}],
-         "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 20}]}, "color": {"mode": "thresholds"}}}},
-        {"id": 4, "type": "stat", "title": "Backlog", "gridPos": {"h": 3, "w": 4, "x": 8, "y": 3},
+         "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "text", "value": null}, {"color": "orange", "value": 20}]}, "color": {"mode": "thresholds"}}}},
+        {"id": 4, "type": "stat", "title": "Backlog", "transparent": true, "gridPos": {"h": 3, "w": 4, "x": 8, "y": 3},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT count(*) FROM files WHERE status='pending'"}],
-         "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}]}, "color": {"mode": "thresholds"}}}},
+         "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "text", "value": null}, {"color": "orange", "value": 50}]}, "color": {"mode": "thresholds"}}}},
 
-        {"id": 10, "type": "timeseries", "title": "stroke_amp (pump health) — threshold 2.0 = fault", "gridPos": {"h": 9, "w": 12, "x": 0, "y": 6},
+        {"id": 10, "type": "timeseries", "title": "Pump Health — Stroke Amplitude", "transparent": true,
+         "description": "Pump-stroke pulsation amplitude (FFT of the pressure ripple at the stroke frequency). Healthy <=1; fault above the red line at 2.",
+         "gridPos": {"h": 9, "w": 12, "x": 0, "y": 6},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "time_series", "rawSql": "SELECT acq_at AS time, instrument AS metric, stroke_amp AS value FROM runs WHERE $__timeFilter(acq_at) AND stroke_amp IS NOT NULL AND instrument IN ($instrument) ORDER BY acq_at"}],
          "fieldConfig": {"defaults": {"custom": {"drawStyle": "points", "pointSize": 4, "lineWidth": 1},
             "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 2}]},
             "custom.thresholdsStyle": {"mode": "line"}}}},
 
-        {"id": 11, "type": "timeseries", "title": "p_2min (pressure at 2 min, psi)", "gridPos": {"h": 9, "w": 12, "x": 12, "y": 6},
+        {"id": 11, "type": "timeseries", "title": "Column Pressure @ 2 min", "transparent": true,
+         "description": "Interpolated backpressure at exactly 2 min into each run.",
+         "gridPos": {"h": 9, "w": 12, "x": 12, "y": 6},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "time_series", "rawSql": "SELECT acq_at AS time, instrument AS metric, p_2min AS value FROM runs WHERE $__timeFilter(acq_at) AND p_2min IS NOT NULL AND instrument IN ($instrument) ORDER BY acq_at"}],
-         "fieldConfig": {"defaults": {"unit": "none", "custom": {"drawStyle": "points", "pointSize": 4}}}},
+         "fieldConfig": {"defaults": {"unit": "pressurepsi", "decimals": 0, "custom": {"drawStyle": "points", "pointSize": 4}}}},
 
-        {"id": 20, "type": "table", "title": "Suspect runs (stroke_amp > 1.5)", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 15},
+        {"id": 20, "type": "table", "title": "Elevated & Fault Runs", "transparent": true,
+         "description": "Runs with stroke amplitude above 1.5 (orange) / 2.0 fault (red).",
+         "gridPos": {"h": 9, "w": 24, "x": 0, "y": 15},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT acq_at, instrument, round(stroke_amp::numeric,2) AS stroke, p_2min, ripple, max_drop, substring(path from '[^/]+\\.lcd$') AS file FROM runs WHERE stroke_amp > 1.5 AND instrument IN ($instrument) ORDER BY acq_at DESC LIMIT 100"}]}
+         "targets": [{"format": "table", "rawSql": "SELECT to_char(acq_at,'MM-DD HH24:MI') AS ran, instrument, split_part(substring(path from '([^/]+)\\.lcd$'),'_',1) AS accession, round(stroke_amp::numeric,2) AS pump, round(p_2min) AS psi_2min, ripple, max_drop FROM runs WHERE stroke_amp > 1.5 AND instrument IN ($instrument) ORDER BY acq_at DESC LIMIT 100"}],
+         "fieldConfig": {"defaults": {"custom": {"align": "center"}}, "overrides": [
+           {"matcher": {"id": "byName", "options": "pump"}, "properties": [
+             {"id": "custom.cellOptions", "value": {"type": "color-text"}}, {"id": "decimals", "value": 2},
+             {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "text", "value": null}, {"color": "orange", "value": 1.5}, {"color": "red", "value": 2}]}}]}]}}
       ]
     }

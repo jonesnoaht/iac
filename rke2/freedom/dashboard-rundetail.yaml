@@ -1,9 +1,7 @@
 ---
 # HPLC Run Detail — drill-down for a single run, opened from the Run Log
-# (var-path passed in the URL). Shows headline pump metrics (fault-colored) and
-# the full per-run record. Pressure waveform panel is a follow-up (needs the
-# decoded trace queryable by Grafana; today the trace lives as an .npz under
-# pressure/ in hplc-derived, referenced by trace_key).
+# (var-path passed in the URL). Headline pump metrics (fault-colored) + the full
+# per-run record.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,38 +23,42 @@ data:
         {"name": "path", "type": "textbox", "label": "run key", "query": "", "current": {"text": "", "value": ""}}
       ]},
       "panels": [
-        {"id": 1, "type": "stat", "title": "Instrument", "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+        {"id": 1, "type": "stat", "title": "Instrument", "transparent": true, "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT instrument AS value FROM runs WHERE path = '${path}'"}],
          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "textMode": "value", "colorMode": "none"}},
 
-        {"id": 2, "type": "stat", "title": "stroke_amp (>2 = pump fault)", "gridPos": {"h": 4, "w": 5, "x": 4, "y": 0},
+        {"id": 2, "type": "stat", "title": "Pump Health", "transparent": true,
+         "description": "Pump-stroke amplitude. Healthy <=1; fault >2.",
+         "gridPos": {"h": 4, "w": 5, "x": 4, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT stroke_amp AS value FROM runs WHERE path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "background"},
+         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "value"},
          "fieldConfig": {"defaults": {"decimals": 2, "thresholds": {"mode": "absolute", "steps": [
            {"color": "green", "value": null}, {"color": "orange", "value": 1.5}, {"color": "red", "value": 2}]}}}},
 
-        {"id": 3, "type": "stat", "title": "p_2min (psi)", "gridPos": {"h": 4, "w": 5, "x": 9, "y": 0},
+        {"id": 3, "type": "stat", "title": "Pressure @ 2 min", "transparent": true, "gridPos": {"h": 4, "w": 5, "x": 9, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT p_2min AS value FROM runs WHERE path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "none"}},
+         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "none"},
+         "fieldConfig": {"defaults": {"unit": "pressurepsi", "decimals": 0}}},
 
-        {"id": 4, "type": "stat", "title": "p_min (psi)", "gridPos": {"h": 4, "w": 5, "x": 14, "y": 0},
+        {"id": 4, "type": "stat", "title": "Min Pressure", "transparent": true, "gridPos": {"h": 4, "w": 5, "x": 14, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT p_min AS value FROM runs WHERE path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "none"}},
+         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "none"},
+         "fieldConfig": {"defaults": {"unit": "pressurepsi", "decimals": 0}}},
 
-        {"id": 5, "type": "stat", "title": "Status", "gridPos": {"h": 4, "w": 5, "x": 19, "y": 0},
+        {"id": 5, "type": "stat", "title": "Status", "transparent": true, "gridPos": {"h": 4, "w": 5, "x": 19, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT f.status AS value FROM files f WHERE f.path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "textMode": "value", "colorMode": "background"},
+         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "textMode": "value", "colorMode": "value"},
          "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {
-           "error": {"color": "red", "index": 0}, "ok": {"color": "dark-green", "index": 1}, "pending": {"color": "yellow", "index": 2}}}]}}},
+           "error": {"color": "red", "index": 0}, "ok": {"color": "green", "index": 1}, "pending": {"color": "yellow", "index": 2}}}]}}},
 
-        {"id": 10, "type": "table", "title": "Full record", "gridPos": {"h": 12, "w": 24, "x": 0, "y": 4},
+        {"id": 10, "type": "table", "title": "Run Record", "transparent": true, "gridPos": {"h": 12, "w": 24, "x": 0, "y": 4},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT substring(r.path from '([^/]+)\\.lcd$') AS sample, r.instrument, r.system_id, r.acq_at, f.status, r.is_rush, r.is_rerun, r.run_min, r.p_start, r.p_2min, r.p_max, r.p_min, r.ripple, r.max_drop, r.stroke_amp, r.flow_med, r.flow_std, r.oven_med, r.trace_key, r.path FROM runs r JOIN files f USING(path) WHERE r.path = '${path}'"}],
+         "targets": [{"format": "table", "rawSql": "SELECT substring(r.path from '([^/]+)\\.lcd$') AS sample, r.instrument, r.system_id, r.acq_at, f.status, r.is_rush, r.is_rerun, r.is_fault, r.run_min, r.p_start, r.p_2min, r.p_max, r.p_min, r.ripple, r.max_drop, r.stroke_amp, r.flow_med, r.flow_std, r.oven_med, r.trace_key, r.path FROM runs r JOIN files f USING(path) WHERE r.path = '${path}'"}],
          "transformations": [{"id": "transpose", "options": {}}]}
       ]
     }
