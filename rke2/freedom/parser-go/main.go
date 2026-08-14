@@ -12,6 +12,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,11 +40,12 @@ func envInt(k string, def int) int {
 }
 
 type Config struct {
-	Raw, Derived           string
-	ScanInterval, MinAge   int
-	S3Endpoint             string
-	S3Access, S3Secret     string
-	S3Secure               bool
+	Raw, Derived         string
+	ScanInterval, MinAge int
+	Workers              int
+	S3Endpoint           string
+	S3Access, S3Secret   string
+	S3Secure             bool
 }
 
 func loadConfig() Config {
@@ -54,6 +57,7 @@ func loadConfig() Config {
 		Derived:      env("DERIVED_BUCKET", "hplc-derived"),
 		ScanInterval: envInt("SCAN_INTERVAL", 300),
 		MinAge:       envInt("MIN_AGE", 600),
+		Workers:      envInt("WORKERS", 8),
 		S3Endpoint:   ep,
 		S3Access:     os.Getenv("S3_ACCESS_KEY"),
 		S3Secret:     os.Getenv("S3_SECRET_KEY"),
@@ -81,9 +85,9 @@ func main() {
 		log.Fatalf("s3 client: %v", err)
 	}
 
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable",
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable&pool_max_conns=%d",
 		env("PGUSER", "hplc"), os.Getenv("PGPASSWORD"),
-		env("PGHOST", "hplc-postgres"), env("PGDATABASE", "hplc"))
+		env("PGHOST", "hplc-postgres"), env("PGDATABASE", "hplc"), cfg.Workers+4)
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		log.Fatalf("pg pool: %v", err)
@@ -117,10 +121,41 @@ func scan(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool)
 	rows.Close()
 
 	now := time.Now()
-	done, errc, total := 0, 0, 0
+	var done, errc, total int64
+
+	type job struct {
+		key, inst string
+		size      int64
+		mtime     float64
+	}
+	jobs := make(chan job, 512)
+	var wg sync.WaitGroup
+	for w := 0; w < cfg.Workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				_, _ = pool.Exec(ctx,
+					`INSERT INTO files(path,instrument,size,mtime,status) VALUES($1,$2,$3,$4,'pending')
+					 ON CONFLICT(path) DO UPDATE SET size=EXCLUDED.size, mtime=EXCLUDED.mtime`,
+					j.key, j.inst, j.size, j.mtime)
+				if err := processOne(ctx, cfg, s3, pool, j.key, j.inst); err != nil {
+					atomic.AddInt64(&errc, 1)
+					_, _ = pool.Exec(ctx, "UPDATE files SET status='error', error=$1 WHERE path=$2",
+						truncate(err.Error(), 300), j.key)
+					log.Printf("ERROR %s: %v", j.key, err)
+				} else {
+					atomic.AddInt64(&done, 1)
+				}
+			}
+		}()
+	}
+
+	var listErr error
 	for obj := range s3.ListObjects(ctx, cfg.Raw, minio.ListObjectsOptions{Recursive: true}) {
 		if obj.Err != nil {
-			return obj.Err
+			listErr = obj.Err
+			break
 		}
 		key := obj.Key
 		if !strings.HasSuffix(strings.ToLower(key), ".lcd") {
@@ -139,22 +174,12 @@ func scan(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool)
 		if i := strings.IndexByte(key, '/'); i >= 0 {
 			inst = key[:i]
 		}
-		_, _ = pool.Exec(ctx,
-			`INSERT INTO files(path,instrument,size,mtime,status) VALUES($1,$2,$3,$4,'pending')
-			 ON CONFLICT(path) DO UPDATE SET size=EXCLUDED.size, mtime=EXCLUDED.mtime`,
-			key, inst, obj.Size, float64(obj.LastModified.Unix()))
-
-		if err := processOne(ctx, cfg, s3, pool, key, inst); err != nil {
-			errc++
-			_, _ = pool.Exec(ctx, "UPDATE files SET status='error', error=$1 WHERE path=$2",
-				truncate(err.Error(), 300), key)
-			log.Printf("ERROR %s: %v", key, err)
-		} else {
-			done++
-		}
+		jobs <- job{key: key, inst: inst, size: obj.Size, mtime: float64(obj.LastModified.Unix())}
 	}
-	log.Printf("scan: %d objects, %d ok, %d err", total, done, errc)
-	return nil
+	close(jobs)
+	wg.Wait()
+	log.Printf("scan: %d objects, %d ok, %d err (%d workers)", total, done, errc, cfg.Workers)
+	return listErr
 }
 
 func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool, key, inst string) error {
