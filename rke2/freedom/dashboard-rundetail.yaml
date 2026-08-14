@@ -56,7 +56,25 @@ data:
          "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {
            "error": {"color": "red", "index": 0}, "ok": {"color": "green", "index": 1}, "pending": {"color": "yellow", "index": 2}}}]}}},
 
-        {"id": 10, "type": "table", "title": "Run Record", "transparent": true, "gridPos": {"h": 12, "w": 24, "x": 0, "y": 4},
+        {"id": 6, "type": "trend", "title": "Pressure Trace", "transparent": true,
+         "description": "Decoded pump pressure vs retention time for this run.",
+         "gridPos": {"h": 9, "w": 12, "x": 0, "y": 4},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT (ord-1)::float8/GREATEST(array_length(pressure_trace,1)-1,1)*run_min AS rt_min, v AS pressure FROM runs, unnest(pressure_trace) WITH ORDINALITY u(v,ord) WHERE path='${path}' AND pressure_trace IS NOT NULL ORDER BY ord"}],
+         "options": {"xField": "rt_min", "legend": {"showLegend": false}},
+         "fieldConfig": {"defaults": {"unit": "pressurepsi", "custom": {"drawStyle": "line", "lineWidth": 1, "pointSize": 0, "fillOpacity": 8, "lineInterpolation": "smooth"}},
+           "overrides": [{"matcher": {"id": "byName", "options": "rt_min"}, "properties": [{"id": "unit", "value": "m"}, {"id": "displayName", "value": "min"}]}]}},
+
+        {"id": 7, "type": "trend", "title": "Chromatogram (214 nm)", "transparent": true,
+         "description": "UV absorbance at 214 nm vs retention time (detector counts).",
+         "gridPos": {"h": 9, "w": 12, "x": 12, "y": 4},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT (ord-1)::float8/GREATEST(array_length(chrom_trace,1)-1,1)*run_min AS rt_min, v AS absorbance FROM runs, unnest(chrom_trace) WITH ORDINALITY u(v,ord) WHERE path='${path}' AND chrom_trace IS NOT NULL ORDER BY ord"}],
+         "options": {"xField": "rt_min", "legend": {"showLegend": false}},
+         "fieldConfig": {"defaults": {"unit": "none", "custom": {"drawStyle": "line", "lineWidth": 1, "pointSize": 0, "fillOpacity": 8, "lineInterpolation": "smooth"}},
+           "overrides": [{"matcher": {"id": "byName", "options": "rt_min"}, "properties": [{"id": "unit", "value": "m"}, {"id": "displayName", "value": "min"}]}]}},
+
+        {"id": 10, "type": "table", "title": "Run Record", "transparent": true, "gridPos": {"h": 12, "w": 24, "x": 0, "y": 13},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
          "targets": [{"format": "table", "rawSql": "SELECT substring(r.path from '([^/]+)\\.lcd$') AS sample, r.instrument, r.system_id, r.acq_at, f.status, r.is_rush, r.is_rerun, r.is_fault, r.run_min, r.p_start, r.p_2min, r.p_max, r.p_min, r.ripple, r.max_drop, r.stroke_amp, r.flow_med, r.flow_std, r.oven_med, r.trace_key, r.path FROM runs r JOIN files f USING(path) WHERE r.path = '${path}'"}],
          "transformations": [{"id": "transpose", "options": {}}]}

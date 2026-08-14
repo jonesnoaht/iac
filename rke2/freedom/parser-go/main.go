@@ -183,26 +183,51 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 		minio.PutObjectOptions{ContentType: "application/octet-stream"}); err != nil {
 		return err
 	}
-	// Full 3D PDA matrix → chromatogram/<key>.npz. Non-fatal: a run without
-	// (or with unreadable) PDA data still gets its pressure metrics; chrom_key
-	// stays NULL and a later re-parse can fill it in.
+	// Decode the PDA 3D matrix ONCE: write the full-res chromatogram/<key>.npz
+	// AND extract the downsampled 214 nm chromatogram for the Postgres display
+	// trace. Non-fatal: a run without (or with unreadable) PDA data still gets
+	// its pressure metrics; chrom fields stay NULL and a re-parse can fill them.
+	pressureTrace := pressureTraceOf(chans)
 	var chromKey *string
-	if ckey, cerr := putChromatogram(ctx, cfg, s3, key, streams); cerr != nil {
-		log.Printf("chromatogram %s: %v", key, cerr)
-	} else if ckey != "" {
-		chromKey = &ckey
+	var chromTrace []float64
+	var chromNm *float64
+	if _, ok := streams[pdaDir+"/3D Raw Data"]; ok {
+		if times, lambdas, mat, nrows, nlambda, perr := readPDA(streams); perr != nil {
+			log.Printf("chromatogram %s: %v", key, perr)
+		} else if nrows > 0 && nlambda > 0 {
+			if npzc, e := chromNpz(times, lambdas, mat, nrows, nlambda); e == nil {
+				ck := "chromatogram/" + key + ".npz"
+				if _, e := s3.PutObject(ctx, cfg.Derived, ck, bytesReader(npzc), int64(len(npzc)),
+					minio.PutObjectOptions{ContentType: "application/octet-stream"}); e == nil {
+					chromKey = &ck
+				}
+			}
+			idx := nearestLambda(lambdas, 214)
+			nm := lambdas[idx]
+			chromNm = &nm
+			col := make([]float64, nrows)
+			for i := 0; i < nrows; i++ {
+				col[i] = float64(mat[i*nlambda+idx])
+			}
+			chromTrace = downsample(col, traceN)
+		}
 	}
 	_, err = pool.Exec(ctx, `
 		INSERT INTO runs(path,instrument,system_id,acq_at,run_min,p_start,p_max,p_min,
-			p_2min,ripple,max_drop,stroke_amp,flow_med,flow_std,oven_med,trace_key,chrom_key)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+			p_2min,ripple,max_drop,stroke_amp,flow_med,flow_std,oven_med,trace_key,chrom_key,
+			pressure_trace,chrom_trace,chrom_nm)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
 		ON CONFLICT(path) DO UPDATE SET
 			instrument=EXCLUDED.instrument, system_id=EXCLUDED.system_id, acq_at=EXCLUDED.acq_at,
 			run_min=EXCLUDED.run_min, p_2min=EXCLUDED.p_2min, stroke_amp=EXCLUDED.stroke_amp,
 			trace_key=EXCLUDED.trace_key,
-			chrom_key=COALESCE(EXCLUDED.chrom_key, runs.chrom_key)`,
+			chrom_key=COALESCE(EXCLUDED.chrom_key, runs.chrom_key),
+			pressure_trace=EXCLUDED.pressure_trace,
+			chrom_trace=COALESCE(EXCLUDED.chrom_trace, runs.chrom_trace),
+			chrom_nm=COALESCE(EXCLUDED.chrom_nm, runs.chrom_nm)`,
 		key, inst, m.SystemID, m.AcqAt, m.RunMin, m.PStart, m.PMax, m.PMin,
-		m.P2Min, m.Ripple, m.MaxDrop, m.StrokeAmp, m.FlowMed, m.FlowStd, m.OvenMed, dkey, chromKey)
+		m.P2Min, m.Ripple, m.MaxDrop, m.StrokeAmp, m.FlowMed, m.FlowStd, m.OvenMed, dkey, chromKey,
+		pressureTrace, chromTrace, chromNm)
 	if err != nil {
 		return err
 	}

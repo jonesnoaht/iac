@@ -62,3 +62,10 @@ CREATE INDEX IF NOT EXISTS runs_flags_idx ON runs(is_rush, is_rerun);
 -- (healthy <=1, failed 3.3-5.5, clean gap between). NULL when stroke_amp is null.
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS is_fault BOOLEAN GENERATED ALWAYS AS (stroke_amp > 2) STORED;
 CREATE INDEX IF NOT EXISTS runs_fault_idx ON runs(is_fault);
+
+-- Downsampled display traces (~500 pts) for the run-detail dashboard; full-res
+-- lives in the pressure/ and chromatogram/ .npz artifacts. Retention time is
+-- derived in SQL from run_min and the array index.
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS pressure_trace DOUBLE PRECISION[];
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS chrom_trace    DOUBLE PRECISION[];
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS chrom_nm       DOUBLE PRECISION;
