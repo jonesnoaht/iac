@@ -5,8 +5,7 @@
 -- Ingest ledger: one row per .lcd seen, drives idempotent parsing.
 CREATE TABLE IF NOT EXISTS files (
   path        TEXT PRIMARY KEY,          -- bucket key, e.g. helsa/2026/08. August/08.10.2026/xxx.lcd
-  instrument  TEXT,                      -- canonical instrument id (from lcd_meta)
-  pc          TEXT,                      -- first path segment under hplc-raw/ (transport id)
+  instrument  TEXT,                      -- instrument name = first path segment (helsa/hope)
   size        BIGINT,
   mtime       DOUBLE PRECISION,          -- object last-modified epoch
   parsed_at   DOUBLE PRECISION,
@@ -20,8 +19,8 @@ CREATE INDEX IF NOT EXISTS files_status_idx ON files(status);
 -- spikes on a dead pump head (the alert signal).
 CREATE TABLE IF NOT EXISTS runs (
   path         TEXT PRIMARY KEY REFERENCES files(path) ON DELETE CASCADE,
-  instrument   TEXT,
-  pc           TEXT,
+  instrument   TEXT,                     -- instrument name = bucket folder (helsa/hope) — the identity we use everywhere
+  system_id    TEXT,                     -- embedded LabSolutions system string (HPLC/DESKTOP-5HLOM1R-*) — demoted, informational only
   acq_at       TIMESTAMPTZ,              -- embedded FILETIME (instrument clock — analysis only, NOT freshness)
   run_min      DOUBLE PRECISION,
   p_start      DOUBLE PRECISION,
@@ -51,3 +50,10 @@ GRANT CONNECT ON DATABASE hplc TO grafana_ro;
 GRANT USAGE ON SCHEMA public TO grafana_ro;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO grafana_ro;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO grafana_ro;
+
+-- Workflow flags derived from the filename (RUSH = priority, (RR) = rerun).
+-- GENERATED columns so they apply to every existing row instantly and stay
+-- consistent with no parser code. Added live via ALTER (see migration).
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS is_rush  BOOLEAN GENERATED ALWAYS AS (path ILIKE '%(RUSH)%') STORED;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS is_rerun BOOLEAN GENERATED ALWAYS AS (path ~* '\(RR\)') STORED;
+CREATE INDEX IF NOT EXISTS runs_flags_idx ON runs(is_rush, is_rerun);

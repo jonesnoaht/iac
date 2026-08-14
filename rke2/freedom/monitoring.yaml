@@ -40,10 +40,10 @@ spec:
           for: 0m
           labels: { severity: critical }
           annotations:
-            summary: "HPLC pump head FAILURE on {{ $labels.pc }} (stroke {{ $value | printf \"%.1f\" }})"
+            summary: "HPLC pump head FAILURE on {{ $labels.instrument }} (stroke {{ $value | printf \"%.1f\" }})"
             description: >-
-              Most recent run on {{ $labels.pc }} shows pump-stroke amplitude
-              {{ with printf "hplc_last_stroke_amp{pc='%s'}" $labels.pc | query }}{{ . | first | value | printf "%.1f" }}{{ end }}
+              Most recent run on {{ $labels.instrument }} shows pump-stroke amplitude
+              {{ with printf "hplc_last_stroke_amp{instrument='%s'}" $labels.instrument | query }}{{ . | first | value | printf "%.1f" }}{{ end }}
               (healthy <1) with pressure collapsed below 80% of baseline — a dead
               pump head. Injections/backpressure unreliable until serviced. This
               is the alert that would have caught the 8/12 failure within 20 min.
@@ -54,10 +54,10 @@ spec:
           for: 0m
           labels: { severity: warning }
           annotations:
-            summary: "HPLC pump stroke anomaly on {{ $labels.pc }} (developing fault)"
+            summary: "HPLC pump stroke anomaly on {{ $labels.instrument }} (developing fault)"
             description: >-
               Elevated pump-stroke amplitude with pressure still normal on
-              {{ $labels.pc }} — a developing head fault / debris event that may
+              {{ $labels.instrument }} — a developing head fault / debris event that may
               precede full failure. Inspect before the next batch.
     - name: hplc-pipeline
       rules:

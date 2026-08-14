@@ -41,7 +41,7 @@ func validateFile(path string) {
 			fmt.Printf("  %-11s %g\n", name, *v)
 		}
 	}
-	fmt.Printf("instrument: %s\n", m.Instrument)
+	fmt.Printf("system_id: %s\n", m.SystemID)
 	if m.AcqAt != nil {
 		fmt.Printf("acq_at:     %s\n", *m.AcqAt)
 	}

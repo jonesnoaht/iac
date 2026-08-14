@@ -129,16 +129,18 @@ func scan(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool)
 		if now.Sub(obj.LastModified) < time.Duration(cfg.MinAge)*time.Second {
 			continue
 		}
-		pc := key
+		// instrument identity = first path segment under hplc-raw/ (the bucket
+		// folder we name helsa/hope), NOT the embedded LabSolutions system string.
+		inst := key
 		if i := strings.IndexByte(key, '/'); i >= 0 {
-			pc = key[:i]
+			inst = key[:i]
 		}
 		_, _ = pool.Exec(ctx,
-			`INSERT INTO files(path,pc,size,mtime,status) VALUES($1,$2,$3,$4,'pending')
+			`INSERT INTO files(path,instrument,size,mtime,status) VALUES($1,$2,$3,$4,'pending')
 			 ON CONFLICT(path) DO UPDATE SET size=EXCLUDED.size, mtime=EXCLUDED.mtime`,
-			key, pc, obj.Size, float64(obj.LastModified.Unix()))
+			key, inst, obj.Size, float64(obj.LastModified.Unix()))
 
-		if err := processOne(ctx, cfg, s3, pool, key, pc); err != nil {
+		if err := processOne(ctx, cfg, s3, pool, key, inst); err != nil {
 			errc++
 			_, _ = pool.Exec(ctx, "UPDATE files SET status='error', error=$1 WHERE path=$2",
 				truncate(err.Error(), 300), key)
@@ -151,7 +153,7 @@ func scan(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool)
 	return nil
 }
 
-func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool, key, pc string) error {
+func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool, key, inst string) error {
 	o, err := s3.GetObject(ctx, cfg.Raw, key, minio.GetObjectOptions{})
 	if err != nil {
 		return err
@@ -176,13 +178,14 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 		return err
 	}
 	_, err = pool.Exec(ctx, `
-		INSERT INTO runs(path,instrument,pc,acq_at,run_min,p_start,p_max,p_min,
+		INSERT INTO runs(path,instrument,system_id,acq_at,run_min,p_start,p_max,p_min,
 			p_2min,ripple,max_drop,stroke_amp,flow_med,flow_std,oven_med,trace_key)
 		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		ON CONFLICT(path) DO UPDATE SET
-			instrument=EXCLUDED.instrument, acq_at=EXCLUDED.acq_at, run_min=EXCLUDED.run_min,
-			p_2min=EXCLUDED.p_2min, stroke_amp=EXCLUDED.stroke_amp, trace_key=EXCLUDED.trace_key`,
-		key, m.Instrument, pc, m.AcqAt, m.RunMin, m.PStart, m.PMax, m.PMin,
+			instrument=EXCLUDED.instrument, system_id=EXCLUDED.system_id, acq_at=EXCLUDED.acq_at,
+			run_min=EXCLUDED.run_min, p_2min=EXCLUDED.p_2min, stroke_amp=EXCLUDED.stroke_amp,
+			trace_key=EXCLUDED.trace_key`,
+		key, inst, m.SystemID, m.AcqAt, m.RunMin, m.PStart, m.PMax, m.PMin,
 		m.P2Min, m.Ripple, m.MaxDrop, m.StrokeAmp, m.FlowMed, m.FlowStd, m.OvenMed, dkey)
 	if err != nil {
 		return err

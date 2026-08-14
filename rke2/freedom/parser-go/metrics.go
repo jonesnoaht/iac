@@ -13,8 +13,8 @@ import (
 )
 
 type Metrics struct {
-	Instrument string
-	AcqAt      *string
+	SystemID string // embedded LabSolutions system string (HPLC/DESKTOP-*) — demoted; instrument identity is the bucket folder (helsa/hope)
+	AcqAt    *string
 	RunMin     *float64
 	PStart     *float64
 	PMax       *float64
@@ -201,7 +201,7 @@ func computeMetrics(streams map[string][]byte) (*Metrics, []Channel, error) {
 	_, fl, _ := readStatusChannel(streams, 5)
 	_, ov, _ := readStatusChannel(streams, 6)
 
-	m := &Metrics{Instrument: instrument(streams)}
+	m := &Metrics{SystemID: instrument(streams)}
 	if at, ok := acqTime(streams); ok {
 		s := at.Format("2006-01-02T15:04:05.000000Z07:00")
 		m.AcqAt = &s
