@@ -1,8 +1,75 @@
 ---
+# ---------------------------------------------------------------------------
+# PeptOdyssey product — peptodyssey.flmanbiosci.net
+# Authentik full-proxy → u4u-edge (path-split /api/v1 + frontend).
+# FMB | Infrastructure groups.
+#
+# Canonical API shape (all FMB product hosts):  https://{host}/api/v1/...
+# Prefer: https://peptodyssey.flmanbiosci.net/api/v1/...
+# Public (Authentik skip): /privacy, /peptodyssey/privacy,
+#   /api/v1/health, /api/v1/healthkit(/|$)
+# ---------------------------------------------------------------------------
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: u4u-engine
+  name: peptodyssey
+  namespace: theswamp
+  annotations:
+    authentik.home.arpa/enabled: "true"
+spec:
+  parentRefs:
+    - name: hwcopeland-gateway
+      namespace: kube-system
+      sectionName: flmanbiosci-https
+  hostnames:
+    - "peptodyssey.flmanbiosci.net"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /if/
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /
+            statusCode: 302
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: authentik-server
+          namespace: authentik
+          port: 80
+---
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: peptodyssey
+  namespace: theswamp
+spec:
+  name: peptodyssey.flmanbiosci.net
+  type: CNAME
+  content: flmanbiosci.net
+  proxied: true
+  ttl: 1
+  interval: 5m
+---
+# ---------------------------------------------------------------------------
+# Company apex — flmanbiosci.net (PUBLIC, no Authentik)
+# Serves Next frontend (marketing at /). Product UI paths 301 via gateway
+# to peptodyssey.flmanbiosci.net. Legacy privacy path 301 to product /privacy.
+#
+# /api/v1 stays a REAL dual-route to u4u-engine (not a cross-host 301):
+# URLSession/iOS drop Authorization on cross-host redirects and turn POST→GET.
+# Prefer product host: https://peptodyssey.flmanbiosci.net/api/v1/...
+# ---------------------------------------------------------------------------
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: flmanbiosci-company
   namespace: theswamp
 spec:
   parentRefs:
@@ -12,6 +79,21 @@ spec:
   hostnames:
     - "flmanbiosci.net"
   rules:
+    # Frozen legacy privacy URL → product host (must stay a working redirect).
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /peptodyssey/privacy
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: peptodyssey.flmanbiosci.net
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /privacy
+            statusCode: 301
+    # Prefixed API dual-route (legacy clients) — direct to engine, no SSO.
     - matches:
         - path:
             type: PathPrefix
@@ -22,9 +104,48 @@ spec:
             path:
               type: ReplacePrefixMatch
               replacePrefixMatch: /
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-authentik-uid
+              - X-authentik-username
+              - X-authentik-email
+              - X-authentik-name
+              - X-authentik-groups
+              - X-Authentik-Uid
+              - X-Authentik-Username
+              - X-Authentik-Email
+              - X-Authentik-Name
+              - X-Authentik-Groups
       backendRefs:
         - name: u4u-engine
           port: 8000
+    # Product tool paths → product host (middleware is backup; gateway is faster).
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /jobs
+        - path:
+            type: PathPrefix
+            value: /tracking
+        - path:
+            type: PathPrefix
+            value: /regulatory
+        - path:
+            type: PathPrefix
+            value: /study
+        - path:
+            type: PathPrefix
+            value: /faq
+        - path:
+            type: PathPrefix
+            value: /peptodyssey
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: peptodyssey.flmanbiosci.net
+            statusCode: 301
     - matches:
         - path:
             type: PathPrefix
@@ -33,15 +154,11 @@ spec:
         - name: u4u-engine-frontend
           port: 3000
 ---
-# app.flmanbiosci.net -> mirrors the apex so the product is fully
-# self-contained on this host: the frontend calls /api/v1/* same-origin
-# (NEXT_PUBLIC_API_BASE is unset, so the default is the relative "/api/v1"),
-# so this host must also route /api/v1 to the backend. Attaches to the
-# *.flmanbiosci.net wildcard listener (covered by the wildcard cert).
+# app.flmanbiosci.net → product host (retire product-mirror hostname).
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: u4u-engine-app
+  name: flmanbiosci-app-redirect
   namespace: theswamp
 spec:
   parentRefs:
@@ -51,33 +168,19 @@ spec:
   hostnames:
     - "app.flmanbiosci.net"
   rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /api/v1
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: /
-      backendRefs:
-        - name: u4u-engine
-          port: 8000
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      backendRefs:
-        - name: u4u-engine-frontend
-          port: 3000
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: peptodyssey.flmanbiosci.net
+            statusCode: 301
 ---
-# api.flmanbiosci.net -> backend at the root path (no /api/v1 prefix rewrite).
-# e.g. api.flmanbiosci.net/health hits the backend's /health directly.
+# Legacy api.flmanbiosci.net — unprefixed dual-route (device tokens / old scripts).
+# Prefer https://peptodyssey.flmanbiosci.net/api/v1/... for new clients.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: u4u-engine-api
+  name: flmanbiosci-api-legacy
   namespace: theswamp
 spec:
   parentRefs:
@@ -91,6 +194,20 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-authentik-uid
+              - X-authentik-username
+              - X-authentik-email
+              - X-authentik-name
+              - X-authentik-groups
+              - X-Authentik-Uid
+              - X-Authentik-Username
+              - X-Authentik-Email
+              - X-Authentik-Name
+              - X-Authentik-Groups
       backendRefs:
         - name: u4u-engine
           port: 8000

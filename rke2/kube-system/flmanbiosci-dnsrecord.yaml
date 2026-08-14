@@ -103,3 +103,6 @@ spec:
   proxied: true
   ttl: 1
   interval: 5m
+# cytogate + u4u-privacy DNS are Flux-managed CNAMEs in
+# rke2/tooling/flux/theswamp/portfolio-landings.yaml — do NOT re-add A
+# records here (Cloudflare rejects A+CNAME on the same name).

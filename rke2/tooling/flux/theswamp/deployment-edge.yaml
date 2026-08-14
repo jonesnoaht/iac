@@ -1,0 +1,146 @@
+---
+# Path-splitting edge in front of u4u frontend+API. Authentik full-proxy
+# provider for peptodyssey.flmanbiosci.net uses this as internal_host so one
+# upstream can serve both /api/v1/* and /* (Authentik proxy mode only
+# supports a single internal_host).
+#
+# Security: clear inbound X-authentik-* at the server level so a client that
+# somehow reached this ClusterIP cannot spoof staff identity. Authentik's own
+# injected headers are intentionally NOT re-forwarded to u4u-engine — the API
+# authenticates via OIDC Bearer / device tokens, not spoofable proxy headers.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: u4u-edge-nginx
+  namespace: theswamp
+data:
+  nginx.conf: |
+    worker_processes 1;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        access_log /dev/stdout;
+        client_max_body_size 100m;
+
+        upstream u4u_api {
+            server u4u-engine.theswamp.svc.cluster.local:8000;
+        }
+        upstream u4u_fe {
+            server u4u-engine-frontend.theswamp.svc.cluster.local:3000;
+        }
+
+        server {
+            listen 8080;
+            server_name _;
+
+            # Local liveness only — never proxy to the API backend.
+            location = /healthz {
+                access_log off;
+                default_type text/plain;
+                return 200 'ok';
+            }
+
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+            proxy_set_header X-Forwarded-Host  $host;
+            proxy_set_header Host              $host;
+
+            # Drop any inbound Authentik identity headers (spoof defense).
+            proxy_set_header X-authentik-uid      "";
+            proxy_set_header X-authentik-username "";
+            proxy_set_header X-authentik-email    "";
+            proxy_set_header X-authentik-name     "";
+            proxy_set_header X-authentik-groups   "";
+
+            location /api/v1/ {
+                proxy_pass http://u4u_api/;
+                proxy_http_version 1.1;
+                proxy_set_header Connection "";
+                proxy_read_timeout 600s;
+                proxy_send_timeout 600s;
+            }
+
+            location = /api/v1 {
+                return 308 /api/v1/;
+            }
+
+            location / {
+                proxy_pass http://u4u_fe;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+            }
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: u4u-edge
+  namespace: theswamp
+  labels:
+    app: u4u-edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: u4u-edge
+  template:
+    metadata:
+      labels:
+        app: u4u-edge
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: conf
+          configMap:
+            name: u4u-edge-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: u4u-edge
+  namespace: theswamp
+  labels:
+    app: u4u-edge
+spec:
+  selector:
+    app: u4u-edge
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

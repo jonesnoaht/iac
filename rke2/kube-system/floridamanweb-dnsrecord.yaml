@@ -26,3 +26,32 @@ spec:
   proxied: true
   ttl: 1
   interval: 5m
+---
+# AI 411 public landing (phone callback form) — same edge as demo sites.
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: floridamanweb-ai411
+  namespace: kube-system
+spec:
+  name: ai411.floridamanweb.online
+  type: A
+  content: 69.180.240.158
+  proxied: true
+  ttl: 1
+  interval: 5m
+---
+# Internal site desk (Authentik → site-tracker). Canonical rename from
+# sites.flmanbiosci.net — keep legacy flmanbiosci DNS until cutover complete.
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: floridamanweb-sites
+  namespace: kube-system
+spec:
+  name: sites.floridamanweb.online
+  type: A
+  content: 69.180.240.158
+  proxied: true
+  ttl: 1
+  interval: 5m

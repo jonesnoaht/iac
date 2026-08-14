@@ -6,53 +6,107 @@ in — pick one.
 
 ## Option A — API key (static ServiceAccount token, no browser) ← simplest
 
-The `swamp-dev` ServiceAccount token is the API key. An admin (you) mints it once
-and hands it to the collaborator; it cannot be self-served (that would require
-namespace access first — chicken/egg).
-
-**Mint a time-boxed token (preferred — it expires):**
 ```sh
 kubectl -n theswamp create token swamp-dev --duration=2160h   # 90 days
 ```
-**…or read the long-lived (non-expiring) token from the Secret in rbac.yaml:**
-```sh
-kubectl -n theswamp get secret swamp-dev-token -o jsonpath='{.data.token}' | base64 -d; echo
-```
 
-**Build a kubeconfig to hand over:**
-```sh
-API=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-TOKEN=<paste the token from above>
-
-kubectl config --kubeconfig=swamp.kubeconfig set-cluster swamp \
-  --server="$API" --insecure-skip-tls-verify=true
-kubectl config --kubeconfig=swamp.kubeconfig set-credentials swamp-dev --token="$TOKEN"
-kubectl config --kubeconfig=swamp.kubeconfig set-context swamp \
-  --cluster=swamp --user=swamp-dev --namespace=theswamp
-kubectl config --kubeconfig=swamp.kubeconfig use-context swamp
-```
-Then they run `KUBECONFIG=swamp.kubeconfig kubectl get pods` — works **only** in
-`theswamp`; any verb in any other namespace is denied.
-
-> For TLS verification instead of `--insecure-skip-tls-verify`, pull the cluster
-> CA from the token Secret (`...get secret swamp-dev-token -o
-> jsonpath='{.data.ca\.crt}'`), base64-decode it to `ca.crt`, and use
-> `--certificate-authority=ca.crt --embed-certs=true`.
+Build a kubeconfig (see git history / prior ACCESS for full snippet). Works
+**only** in `theswamp`.
 
 ## Option B — per-user SSO (OIDC, auditable)
 
-Because `curtisdearing` / `jonesnoaht` are in the Authentik **Florida Man
-Bioscience** group, they can authenticate as *themselves* via the cluster's OIDC
-flow (the same one the `Kubernetes Users` group uses), landing on the same
-`theswamp`-admin scope. Needs the `kubelogin` (`kubectl oidc-login`) plugin and a
-kubeconfig pointing at `auth.hwcopeland.net`. Use this if you want per-person
-attribution instead of a shared key.
+Authentik **Florida Man Bioscience** group + `kubelogin` against
+`auth.hwcopeland.net`.
+
+## Host topology (PeptOdyssey subdomain)
+
+**API convention (all FMB product hosts):** `https://{host}/api/v1/...`  
+**Preferred PeptOdyssey API:** `https://peptodyssey.flmanbiosci.net/api/v1/...`
+
+| Host | Auth | Backend |
+|------|------|---------|
+| `https://peptodyssey.flmanbiosci.net` | Authentik full-proxy (FMB \| Infrastructure) | `u4u-edge` → FE + `/api/v1` |
+| `https://peptodyssey.flmanbiosci.net/api/v1/*` | SSO except health/healthkit skip | edge → engine (prefix stripped) |
+| `https://api.flmanbiosci.net` | none (legacy unprefixed alias) | `u4u-engine:8000` |
+| `https://flmanbiosci.net` | **public** company | frontend marketing + product UI 301s |
+| `https://flmanbiosci.net/api/v1/*` | none (legacy dual-route) | direct `u4u-engine` (prefix stripped) |
+| `https://app.flmanbiosci.net` | 301 → product host | — |
+| `https://sites.flmanbiosci.net` | **302** → `sites.floridamanweb.online` | legacy desk |
+| `https://sites.floridamanweb.online` | Authentik (site-tracker) | FMWS desk (canonical) |
+| `https://ai411.floridamanweb.online` | **public** | AI 411 landing + callback form |
+| `https://floridamanweb.online` | **public** | Hashed demo sites + `/ai411/` |
+| `https://voice.flmanbiosci.net` | Twilio signature | FMWS voice/SMS/API |
+| `https://cytogate.flmanbiosci.net` | **public** landing | portfolio landing |
+| `https://u4u-privacy.flmanbiosci.net` | **public** landing | portfolio landing |
+| `https://nanodisk.flmanbiosci.net` | **public** landing | MSP / vector nanodisk (research) |
+| `https://drug-design.flmanbiosci.net` | **public** lab platform | next-gen drug design |
+| `https://drug-design.flmanbiosci.net/protein-chemistry/` | **public** page | VR protein chemistry |
+
+### Why path-style API (not `api.*` product subdomain)
+
+X.509 / Cloudflare Universal SSL wildcards match **one** label.
+`peptodyssey.flmanbiosci.net` is covered; `api.peptodyssey.flmanbiosci.net` is not.
+Putting the API under `/api/v1` on the product host keeps one cert, one host, and
+matches how the edge already path-splits frontend vs engine.
+
+Future product APIs should follow the same shape: `https://{product}.flmanbiosci.net/api/v1/...`.
+
+### Public on product host (Authentik `skip_path_regex`)
+
+- `/privacy` and `/peptodyssey/privacy` — App Store / TestFlight
+- `/api/v1/health`
+- `/api/v1/healthkit` and `/api/v1/healthkit/*` (anchored; backend enforces device token)
+
+### Frozen legacy privacy URL
+
+`https://flmanbiosci.net/peptodyssey/privacy` → **301** →
+`https://peptodyssey.flmanbiosci.net/privacy`
+
+### iOS / non-browser API clients
+
+- Privacy: prefer `https://peptodyssey.flmanbiosci.net/privacy` (legacy apex path still redirects)
+- **Preferred API base:** `https://peptodyssey.flmanbiosci.net/api/v1`  
+  (engine paths after prefix strip: `/health`, `/healthkit/samples`, …)
+- HealthKit/enroll hit Authentik **skip** paths (device bearer stays end-to-end)
+- **Legacy dual-routes** (still real backends, not cross-host 301s):
+  - `https://api.flmanbiosci.net/...` (unprefixed)
+  - `https://flmanbiosci.net/api/v1/...` (prefix stripped at the gateway)
+- Do **not** 301 API traffic across hosts for POST/auth clients — URLSession
+  converts POST→GET and strips `Authorization` on cross-host redirects.
+- Device-code OIDC app remains `peptodyssey` at
+  `https://auth.hwcopeland.net/application/o/peptodyssey/`
+
+### Identity headers
+
+Direct legacy API HTTPRoutes and `u4u-edge` strip inbound `X-authentik-*`. The
+engine must not trust client-supplied Authentik headers for identity; use OIDC
+Bearer or device tokens. Staff browser access is gated by Authentik at the
+product host (SSO cookie); API identity is still Bearer/device-token based.
+
+Blueprints: `rke2/authentik/blueprints/` must stay mirrored in
+`blueprints-configmap.yaml` (including CM-only `providers-kubernetes.yaml`).
+
+## FMWS product loop (docs)
+
+Monorepo `demo-websites`:
+
+- `docs/ARCHITECTURE.md` — system design
+- `docs/PRODUCT_LOOP.md` — funnel ops
+- `docs/OPS_CLUSTER.md` — DNS/Authentik/Flux/secrets runbook
+- `docs/API.md` — HTTP APIs
+
+IAC manifests for AI411/sites desk: `httproute-ai411.yaml`,
+`httproute-tracker.yaml`, `floridamanweb-dnsrecord.yaml` (ai411 + sites A
+records), Authentik `providers-sitetracker.yaml` external_host
+`https://sites.floridamanweb.online`.
+
+**Pre-merge:** floridamanweb `sites.` / `ai411.` A records in the manually-
+applied kube-system file must be READY before Flux flips the tracker route,
+or the legacy host 302s to NXDOMAIN. Ping cluster-admin to apply those DNS
+records when ready to merge.
 
 ## Scope & caveats
-- Both paths bind to the in-namespace `admin` ClusterRole via **RoleBinding** →
-  full control inside `theswamp`, **zero** access to any other namespace / nodes
-  / cluster resources.
-- **Reachability:** the kube-apiserver must be reachable from wherever they run
-  `kubectl` (home LAN / VPN). RBAC does not grant network reachability.
-- **Rotate** the static key by deleting + recreating the `swamp-dev-token`
-  Secret (or just use short `create token` durations and skip the Secret).
+
+- kubectl RBAC is namespace-admin for core resources; **Gateway HTTPRoutes** often
+  still need Flux/cluster-admin.
+- kube-apiserver reachability is separate from RBAC (LAN/VPN).

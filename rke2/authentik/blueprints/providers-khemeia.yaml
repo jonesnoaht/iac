@@ -4,7 +4,8 @@ metadata:
 entries:
 - attrs:
     access_code_validity: minutes=1
-    access_token_validity: hours=12
+    # Keep minutes=5 (main) — not an intentional lengthening in the flmanbiosci PR.
+    access_token_validity: minutes=5
     authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
     client_id: khemeia
     client_type: public

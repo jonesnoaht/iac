@@ -1,0 +1,21 @@
+---
+# Legacy sites.flmanbiosci.net → canonical sites.floridamanweb.online
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: site-tracker-legacy-redirect
+  namespace: theswamp
+spec:
+  parentRefs:
+    - name: hwcopeland-gateway
+      namespace: kube-system
+      sectionName: flmanbiosci-https
+  hostnames:
+    - "sites.flmanbiosci.net"
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: sites.floridamanweb.online
+            statusCode: 302
