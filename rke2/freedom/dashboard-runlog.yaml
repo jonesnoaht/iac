@@ -1,7 +1,8 @@
 ---
-# HPLC Run Log — rolling, clickable table of runs. Failed/fault runs go red,
-# RUSH/RERUN are badged. Clicking a run's sample opens the Run Detail dashboard
-# for that exact file. grafana_dashboard sidecar (NAMESPACE=ALL) loads it.
+# HPLC Run Log — a clean rolling feed of runs. Verdict is the real run health
+# (FAULT = pump stroke_amp>2, ERROR = couldn't decode, else OK), NOT the parse
+# status. Short time, accession number (not the full path), RUSH/RR as tags.
+# Click an accession to open its Run Detail.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -26,32 +27,41 @@ data:
          "current": {"text": "All", "value": "$__all"}}
       ]},
       "panels": [
-        {"id": 1, "type": "table", "title": "Runs (newest first — click a sample to open its detail)",
+        {"id": 1, "type": "table",
          "gridPos": {"h": 24, "w": 24, "x": 0, "y": 0},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT r.acq_at AS \"time\", r.instrument, substring(r.path from '([^/]+)\\.lcd$') AS sample, round(r.stroke_amp::numeric,2) AS stroke, round(r.p_2min) AS p_2min, f.status, CASE WHEN r.is_rush THEN 'RUSH' ELSE '' END AS rush, CASE WHEN r.is_rerun THEN 'RR' ELSE '' END AS rerun, r.path FROM runs r JOIN files f USING(path) WHERE $__timeFilter(r.acq_at) AND r.instrument LIKE '$instrument' ORDER BY r.acq_at DESC LIMIT 1000"}],
-         "options": {"sortBy": [{"displayName": "time", "desc": true}], "cellHeight": "sm", "footer": {"show": false}},
+         "targets": [{"format": "table", "rawSql": "SELECT to_char(r.acq_at,'MM-DD HH24:MI') AS \"ran\", r.instrument, split_part(substring(r.path from '([^/]+)\\.lcd$'),'_',1) AS accession, CASE WHEN f.status='error' THEN 'ERROR' WHEN r.is_fault THEN 'FAULT' ELSE 'OK' END AS verdict, round(r.stroke_amp::numeric,2) AS pump, NULLIF(trim(concat_ws('  ', CASE WHEN r.is_rush THEN 'RUSH' END, CASE WHEN r.is_rerun THEN 'RR' END)),'') AS tags, r.path FROM runs r JOIN files f USING(path) WHERE $__timeFilter(r.acq_at) AND r.instrument LIKE '$instrument' ORDER BY r.acq_at DESC LIMIT 1000"}],
+         "options": {"showHeader": true, "cellHeight": "md", "footer": {"show": false}},
          "fieldConfig": {
-           "defaults": {"custom": {"filterable": true, "align": "auto"}},
+           "defaults": {"custom": {"filterable": false, "align": "left", "cellOptions": {"type": "auto"}}},
            "overrides": [
-             {"matcher": {"id": "byName", "options": "stroke"}, "properties": [
-               {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}},
-               {"id": "thresholds", "value": {"mode": "absolute", "steps": [
-                 {"color": "green", "value": null}, {"color": "orange", "value": 1.5}, {"color": "red", "value": 2}]}}]},
-             {"matcher": {"id": "byName", "options": "status"}, "properties": [
+             {"matcher": {"id": "byName", "options": "ran"}, "properties": [
+               {"id": "custom.width", "value": 110}, {"id": "custom.align", "value": "left"}]},
+             {"matcher": {"id": "byName", "options": "instrument"}, "properties": [
+               {"id": "custom.width", "value": 90},
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "mappings", "value": [{"type": "value", "options": {
+                 "helsa": {"color": "purple", "index": 0}, "hope": {"color": "blue", "index": 1}}}]}]},
+             {"matcher": {"id": "byName", "options": "accession"}, "properties": [
+               {"id": "custom.width", "value": 130},
+               {"id": "links", "value": [{"title": "Open run detail", "url": "/d/hplc-run-detail?var-path=${__data.fields.path}"}]}]},
+             {"matcher": {"id": "byName", "options": "verdict"}, "properties": [
+               {"id": "custom.width", "value": 90},
                {"id": "custom.cellOptions", "value": {"type": "color-background"}},
                {"id": "mappings", "value": [{"type": "value", "options": {
-                 "error": {"color": "red", "text": "ERROR", "index": 0},
-                 "ok": {"color": "dark-green", "text": "ok", "index": 1},
-                 "pending": {"color": "yellow", "text": "pending", "index": 2}}}]}]},
-             {"matcher": {"id": "byName", "options": "rush"}, "properties": [
-               {"id": "custom.cellOptions", "value": {"type": "color-background"}},
-               {"id": "mappings", "value": [{"type": "value", "options": {"RUSH": {"color": "blue", "index": 0}}}]}]},
-             {"matcher": {"id": "byName", "options": "rerun"}, "properties": [
-               {"id": "custom.cellOptions", "value": {"type": "color-background"}},
-               {"id": "mappings", "value": [{"type": "value", "options": {"RR": {"color": "orange", "index": 0}}}]}]},
-             {"matcher": {"id": "byName", "options": "sample"}, "properties": [
-               {"id": "links", "value": [{"title": "Open run detail", "url": "/d/hplc-run-detail?var-path=${__data.fields.path}"}]}]},
+                 "OK": {"color": "transparent", "text": "ok", "index": 0},
+                 "FAULT": {"color": "red", "index": 1},
+                 "ERROR": {"color": "dark-orange", "index": 2}}}]}]},
+             {"matcher": {"id": "byName", "options": "pump"}, "properties": [
+               {"id": "custom.width", "value": 80},
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "decimals", "value": 2},
+               {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+                 {"color": "text", "value": null}, {"color": "orange", "value": 1.5}, {"color": "red", "value": 2}]}}]},
+             {"matcher": {"id": "byName", "options": "tags"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "color", "value": {"mode": "fixed", "fixedColor": "text"}},
+               {"id": "mappings", "value": [{"type": "regex", "options": {"pattern": ".*RUSH.*", "result": {"color": "yellow", "index": 0}}}]}]},
              {"matcher": {"id": "byName", "options": "path"}, "properties": [{"id": "custom.hidden", "value": true}]}
            ]
          }

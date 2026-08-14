@@ -57,3 +57,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO grafana_ro;
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS is_rush  BOOLEAN GENERATED ALWAYS AS (path ILIKE '%(RUSH)%') STORED;
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS is_rerun BOOLEAN GENERATED ALWAYS AS (path ~* '\(RR\)') STORED;
 CREATE INDEX IF NOT EXISTS runs_flags_idx ON runs(is_rush, is_rerun);
+
+-- Real run verdict: pump fault when stroke_amp exceeds the empirical 2.0 line
+-- (healthy <=1, failed 3.3-5.5, clean gap between). NULL when stroke_amp is null.
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS is_fault BOOLEAN GENERATED ALWAYS AS (stroke_amp > 2) STORED;
+CREATE INDEX IF NOT EXISTS runs_fault_idx ON runs(is_fault);
