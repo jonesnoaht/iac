@@ -25,7 +25,8 @@ resources:
   - httproute-ai411.yaml
   - httproute-arete-tutoring.yaml
   - pvc-arete-tutoring.yaml
-  - external-secret-arete.yaml
+  # external-secret-arete.yaml — list only after Bitwarden Fields item exists
+  # (same gate as external-secret-voice-extra.yaml). File is ready; needs UUID.
   - deployment-arete-tutoring.yaml
   - service-arete-tutoring.yaml
   - pvc-voice.yaml
