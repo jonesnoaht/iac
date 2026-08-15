@@ -380,7 +380,7 @@ data:
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 33
+            "y": 47
           },
           "datasource": {
             "type": "postgres",
@@ -435,6 +435,229 @@ data:
               "name": "default"
             }
           }
+        },
+        {
+          "id": 1000,
+          "type": "stat",
+          "title": "Reported Purity",
+          "transparent": true,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 33
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "hplc-postgres"
+              },
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "SELECT purity FROM runs WHERE path='$path'",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 95
+                  },
+                  {
+                    "color": "green",
+                    "value": 98
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 1001,
+          "type": "stat",
+          "title": "Main Peak RT",
+          "transparent": true,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 33
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "hplc-postgres"
+              },
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "SELECT main_rt FROM runs WHERE path='$path'",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "m",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 1002,
+          "type": "stat",
+          "title": "Peaks",
+          "transparent": true,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 33
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "hplc-postgres"
+              },
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "SELECT n_peaks FROM runs WHERE path='$path'",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "pressurepsi",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 1003,
+          "type": "stat",
+          "title": "Integration",
+          "transparent": true,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 33
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "hplc-postgres"
+              },
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "SELECT CASE WHEN integrated IS NOT TRUE THEN 'not integrated' WHEN n_identified>1 THEN 'blend ('||n_identified||')' ELSE 'single target' END FROM runs WHERE path='$path'",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "colorMode": "none"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "pressurepsi",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 1100,
+          "type": "table",
+          "title": "Peak Table (LabSolutions integration)",
+          "transparent": true,
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 37
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "postgres",
+                "uid": "hplc-postgres"
+              },
+              "format": "table",
+              "rawQuery": true,
+              "refId": "A",
+              "rawSql": "SELECT idx AS \"#\", round(rt::numeric,3) AS \"RT (min)\", round(area::numeric,0) AS \"area\", round(height::numeric,0) AS \"height\", round(area_pct::numeric,3) AS \"area %\" FROM peaks WHERE path='$path' ORDER BY idx"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "transpose",
+              "options": {}
+            }
+          ]
         }
       ]
     }
