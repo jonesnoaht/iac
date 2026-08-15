@@ -1,10 +1,55 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: authentik
+
 resources:
-  - blueprints-configmap.yaml
   - external-secret.yaml
   - externalsecret-postgres.yaml
   - github-oauth-secret.yaml
   - httproute.yaml
   - reference-grants.yaml
   - synology-nas.yaml
+
+# The authentik-blueprints ConfigMap is GENERATED from blueprints/ — it is not
+# checked in. values.yaml mounts it at /blueprints/custom in the server and
+# worker pods, which is why the blueprints have to live inside a ConfigMap at
+# all. Previously this file was a hand-maintained inline copy of every
+# blueprint, so blueprints/ and the ConfigMap silently drifted (which is how the
+# grafana:// redirect URI and the khemeia 12h token TTL were both lost).
+#
+# Adding a blueprint: drop the file in blueprints/ and add it to the list below.
+# Nothing else. There is no second copy to keep in sync.
+#
+# disableNameSuffixHash is required because values.yaml references the ConfigMap
+# by the literal name "authentik-blueprints". The tradeoff is that a change here
+# does not roll the pods; the authentik worker re-scans /blueprints on its own
+# interval and picks the change up.
+configMapGenerator:
+  - name: authentik-blueprints
+    files:
+      - blueprints/flows-enrollment.yaml
+      - blueprints/groups.yaml
+      - blueprints/metabase-removal.yaml
+      - blueprints/notifications.yaml
+      - blueprints/outpost.yaml
+      - blueprints/providers-flmanbiosci.yaml
+      - blueprints/providers-garage.yaml
+      - blueprints/providers-grafana.yaml
+      - blueprints/providers-homeassistant.yaml
+      - blueprints/providers-homepage.yaml
+      - blueprints/providers-hubble.yaml
+      - blueprints/providers-jupyterhub.yaml
+      - blueprints/providers-khemeia.yaml
+      - blueprints/providers-kubernetes.yaml
+      - blueprints/providers-longhorn.yaml
+      - blueprints/providers-open-webui.yaml
+      - blueprints/providers-peptodyssey.yaml
+      - blueprints/providers-sitetracker.yaml
+      - blueprints/providers-synology.yaml
+      - blueprints/providers-vg.yaml
+      - blueprints/providers-zot.yaml
+      - blueprints/scope-mappings.yaml
+      - blueprints/sources.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true

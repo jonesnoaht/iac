@@ -1,51 +1,50 @@
 version: 1
 metadata:
-  name: Khemeia Provider and Application
+  name: Kubernetes API Provider and Application
 entries:
 - attrs:
     access_code_validity: minutes=1
-    # 12h, deliberately: 5-minute tokens caused browser timer throttling to log
-    # users out mid-session (285f4648). Refresh token stays 30 days.
+    # 12h session: kubelogin tokens that OMIT offline_access (no refresh token)
+    # expire here and force a fresh Authentik browser login. Shared by all
+    # kubelogin users (TannerLew keeps silent refresh via offline_access).
     access_token_validity: hours=12
     authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-    client_id: khemeia
+    client_id: kubernetes
     client_type: public
     include_claims_in_id_token: true
     invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
     issuer_mode: per_provider
-    name: Khemeia
+    name: Kubernetes
     property_mappings:
+    - !Find [authentik_providers_oauth2.scopemapping, [scope_name, groups]]
     - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
     - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+    - !Find [authentik_providers_oauth2.scopemapping, [scope_name, offline_access]]
     - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
     redirect_uris:
+    - matching_mode: regex
+      url: http://localhost:[0-9]+
     - matching_mode: strict
-      url: https://khemeia.net/auth/callback
-    - matching_mode: strict
-      url: https://khemeia.hwcopeland.net/auth/callback
-    - matching_mode: strict
-      url: http://localhost:5174/auth/callback
+      url: urn:ietf:wg:oauth:2.0:oob
+    refresh_token_threshold: hours=1
     refresh_token_validity: days=30
     signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
-    sub_mode: hashed_user_id
+    sub_mode: user_email
   conditions: []
   identifiers:
-    pk: 10
+    name: Kubernetes
   model: authentik_providers_oauth2.oauth2provider
   permissions: []
   state: present
 - attrs:
-    meta_launch_url: https://khemeia.net
-    name: Khemeia
+    meta_description: Cluster API access via kubelogin
+    name: Kubernetes
     policy_engine_mode: any
-    provider: !Find [authentik_providers_oauth2.oauth2provider, [name, Khemeia]]
-    slug: khemeia
+    provider: !Find [authentik_providers_oauth2.oauth2provider, [name, Kubernetes]]
+    slug: kubernetes
   conditions: []
-  # Identify by slug, not pk: the live Application's pk (36d36676-...) does not match
-  # the pk formerly listed here — authentik 2026.2 ignores a supplied pk on
-  # Application create, so pk identifiers fail every re-apply with unique errors.
   identifiers:
-    slug: khemeia
+    slug: kubernetes
   model: authentik_core.application
   permissions: []
   state: present
