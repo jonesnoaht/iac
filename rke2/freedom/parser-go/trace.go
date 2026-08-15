@@ -43,3 +43,28 @@ func pressureTraceOf(chans []Channel) []float64 {
 	}
 	return nil
 }
+
+// dadSurface downsamples the full PDA matrix to a (wl, rt, z-flat rt-major)
+// grid for the 3D DAD surface panel — full detector range, ~90 wl × ~60 rt.
+func dadSurface(times, lambdas []float64, mat []int32, nrows, nlambda int) (wl, rt, z []float64) {
+	ws := nlambda / 90
+	if ws < 1 {
+		ws = 1
+	}
+	ts := nrows / 60
+	if ts < 1 {
+		ts = 1
+	}
+	for j := 0; j < nlambda; j += ws {
+		wl = append(wl, round(lambdas[j], 1))
+	}
+	for i := 0; i < nrows; i += ts {
+		rt = append(rt, round(times[i], 3))
+	}
+	for i := 0; i < nrows; i += ts {
+		for j := 0; j < nlambda; j += ws {
+			z = append(z, round(float64(mat[i*nlambda+j]), 1))
+		}
+	}
+	return
+}

@@ -69,3 +69,9 @@ CREATE INDEX IF NOT EXISTS runs_fault_idx ON runs(is_fault);
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS pressure_trace DOUBLE PRECISION[];
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS chrom_trace    DOUBLE PRECISION[];
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS chrom_nm       DOUBLE PRECISION;
+
+-- Downsampled DAD matrix (~90 wl × 60 rt) for the 3D surface panel; full-res in
+-- the chromatogram/.npz. dad_z is flattened rt-major.
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS dad_wl DOUBLE PRECISION[];
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS dad_rt DOUBLE PRECISION[];
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS dad_z  DOUBLE PRECISION[];

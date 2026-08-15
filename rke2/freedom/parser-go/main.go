@@ -214,7 +214,7 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 	// its pressure metrics; chrom fields stay NULL and a re-parse can fill them.
 	pressureTrace := pressureTraceOf(chans)
 	var chromKey *string
-	var chromTrace []float64
+	var chromTrace, dadWl, dadRt, dadZ []float64
 	var chromNm *float64
 	if _, ok := streams[pdaDir+"/3D Raw Data"]; ok {
 		if times, lambdas, mat, nrows, nlambda, perr := readPDA(streams); perr != nil {
@@ -235,13 +235,14 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 				col[i] = float64(mat[i*nlambda+idx])
 			}
 			chromTrace = downsample(col, traceN)
+			dadWl, dadRt, dadZ = dadSurface(times, lambdas, mat, nrows, nlambda)
 		}
 	}
 	_, err = pool.Exec(ctx, `
 		INSERT INTO runs(path,instrument,system_id,acq_at,run_min,p_start,p_max,p_min,
 			p_2min,ripple,max_drop,stroke_amp,flow_med,flow_std,oven_med,trace_key,chrom_key,
-			pressure_trace,chrom_trace,chrom_nm)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+			pressure_trace,chrom_trace,chrom_nm,dad_wl,dad_rt,dad_z)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
 		ON CONFLICT(path) DO UPDATE SET
 			instrument=EXCLUDED.instrument, system_id=EXCLUDED.system_id, acq_at=EXCLUDED.acq_at,
 			run_min=EXCLUDED.run_min, p_2min=EXCLUDED.p_2min, stroke_amp=EXCLUDED.stroke_amp,
@@ -249,10 +250,13 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 			chrom_key=COALESCE(EXCLUDED.chrom_key, runs.chrom_key),
 			pressure_trace=EXCLUDED.pressure_trace,
 			chrom_trace=COALESCE(EXCLUDED.chrom_trace, runs.chrom_trace),
-			chrom_nm=COALESCE(EXCLUDED.chrom_nm, runs.chrom_nm)`,
+			chrom_nm=COALESCE(EXCLUDED.chrom_nm, runs.chrom_nm),
+			dad_wl=COALESCE(EXCLUDED.dad_wl, runs.dad_wl),
+			dad_rt=COALESCE(EXCLUDED.dad_rt, runs.dad_rt),
+			dad_z=COALESCE(EXCLUDED.dad_z, runs.dad_z)`,
 		key, inst, m.SystemID, m.AcqAt, m.RunMin, m.PStart, m.PMax, m.PMin,
 		m.P2Min, m.Ripple, m.MaxDrop, m.StrokeAmp, m.FlowMed, m.FlowStd, m.OvenMed, dkey, chromKey,
-		pressureTrace, chromTrace, chromNm)
+		pressureTrace, chromTrace, chromNm, dadWl, dadRt, dadZ)
 	if err != nil {
 		return err
 	}

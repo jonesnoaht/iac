@@ -19,65 +19,422 @@ data:
       "editable": true,
       "schemaVersion": 39,
       "timezone": "America/Chicago",
-      "time": {"from": "now-90d", "to": "now"},
-      "templating": {"list": [
-        {"name": "path", "type": "textbox", "label": "run key", "query": "", "current": {"text": "", "value": ""}}
-      ]},
+      "time": {
+        "from": "now-90d",
+        "to": "now"
+      },
+      "templating": {
+        "list": [
+          {
+            "name": "path",
+            "type": "textbox",
+            "label": "run key",
+            "query": "",
+            "current": {
+              "text": "",
+              "value": ""
+            }
+          }
+        ]
+      },
       "panels": [
-        {"id": 1, "type": "stat", "title": "Instrument", "transparent": true, "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
-         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT instrument AS value FROM runs WHERE path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "textMode": "value", "colorMode": "none"}},
-
-        {"id": 2, "type": "stat", "title": "Pump Health", "transparent": true,
-         "description": "Pump-stroke amplitude. Healthy <=1; fault >2.",
-         "gridPos": {"h": 4, "w": 5, "x": 4, "y": 0},
-         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT stroke_amp AS value FROM runs WHERE path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "value"},
-         "fieldConfig": {"defaults": {"decimals": 2, "thresholds": {"mode": "absolute", "steps": [
-           {"color": "green", "value": null}, {"color": "orange", "value": 1.5}, {"color": "red", "value": 2}]}}}},
-
-        {"id": 3, "type": "stat", "title": "Pressure @ 2 min", "transparent": true, "gridPos": {"h": 4, "w": 5, "x": 9, "y": 0},
-         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT p_2min AS value FROM runs WHERE path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "none"},
-         "fieldConfig": {"defaults": {"unit": "pressurepsi", "decimals": 0}}},
-
-        {"id": 4, "type": "stat", "title": "Min Pressure", "transparent": true, "gridPos": {"h": 4, "w": 5, "x": 14, "y": 0},
-         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT p_min AS value FROM runs WHERE path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "colorMode": "none"},
-         "fieldConfig": {"defaults": {"unit": "pressurepsi", "decimals": 0}}},
-
-        {"id": 5, "type": "stat", "title": "Status", "transparent": true, "gridPos": {"h": 4, "w": 5, "x": 19, "y": 0},
-         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT f.status AS value FROM files f WHERE f.path = '${path}'"}],
-         "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "/.*/"}, "textMode": "value", "colorMode": "value"},
-         "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {
-           "error": {"color": "red", "index": 0}, "ok": {"color": "green", "index": 1}, "pending": {"color": "yellow", "index": 2}}}]}}},
-
-        {"id": 6, "type": "trend", "title": "Pressure Trace", "transparent": true,
-         "description": "Decoded pump pressure vs retention time for this run.",
-         "gridPos": {"h": 9, "w": 12, "x": 0, "y": 4},
-         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT (ord-1)::float8/GREATEST(array_length(pressure_trace,1)-1,1)*run_min AS rt_min, v AS pressure FROM runs, unnest(pressure_trace) WITH ORDINALITY u(v,ord) WHERE path='${path}' AND pressure_trace IS NOT NULL ORDER BY ord"}],
-         "options": {"xField": "rt_min", "legend": {"showLegend": false}},
-         "fieldConfig": {"defaults": {"unit": "pressurepsi", "custom": {"drawStyle": "line", "lineWidth": 1, "pointSize": 0, "fillOpacity": 8, "lineInterpolation": "smooth"}},
-           "overrides": [{"matcher": {"id": "byName", "options": "rt_min"}, "properties": [{"id": "unit", "value": "m"}, {"id": "displayName", "value": "min"}]}]}},
-
-        {"id": 7, "type": "trend", "title": "Chromatogram (214 nm)", "transparent": true,
-         "description": "UV absorbance at 214 nm vs retention time (detector counts).",
-         "gridPos": {"h": 9, "w": 12, "x": 12, "y": 4},
-         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT (ord-1)::float8/GREATEST(array_length(chrom_trace,1)-1,1)*run_min AS rt_min, v AS absorbance FROM runs, unnest(chrom_trace) WITH ORDINALITY u(v,ord) WHERE path='${path}' AND chrom_trace IS NOT NULL ORDER BY ord"}],
-         "options": {"xField": "rt_min", "legend": {"showLegend": false}},
-         "fieldConfig": {"defaults": {"unit": "none", "custom": {"drawStyle": "line", "lineWidth": 1, "pointSize": 0, "fillOpacity": 8, "lineInterpolation": "smooth"}},
-           "overrides": [{"matcher": {"id": "byName", "options": "rt_min"}, "properties": [{"id": "unit", "value": "m"}, {"id": "displayName", "value": "min"}]}]}},
-
-        {"id": 10, "type": "table", "title": "Run Record", "transparent": true, "gridPos": {"h": 12, "w": 24, "x": 0, "y": 13},
-         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT substring(r.path from '([^/]+)\\.lcd$') AS sample, r.instrument, r.system_id, to_char(r.acq_at AT TIME ZONE 'America/Chicago','YYYY-MM-DD HH24:MI') AS acq_at, f.status, r.is_rush, r.is_rerun, r.is_fault, r.run_min, r.p_start, r.p_2min, r.p_max, r.p_min, r.ripple, r.max_drop, r.stroke_amp, r.flow_med, r.flow_std, r.oven_med, r.trace_key, r.path FROM runs r JOIN files f USING(path) WHERE r.path = '${path}'"}],
-         "transformations": [{"id": "transpose", "options": {}}]}
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Instrument",
+          "transparent": true,
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 0
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT instrument AS value FROM runs WHERE path = '${path}'"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "textMode": "value",
+            "colorMode": "none"
+          }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Pump Health",
+          "transparent": true,
+          "description": "Pump-stroke amplitude. Healthy <=1; fault >2.",
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 4,
+            "y": 0
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT stroke_amp AS value FROM runs WHERE path = '${path}'"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1.5
+                  },
+                  {
+                    "color": "red",
+                    "value": 2
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Pressure @ 2 min",
+          "transparent": true,
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 9,
+            "y": 0
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT p_2min AS value FROM runs WHERE path = '${path}'"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "colorMode": "none"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "pressurepsi",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Min Pressure",
+          "transparent": true,
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 14,
+            "y": 0
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT p_min AS value FROM runs WHERE path = '${path}'"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "colorMode": "none"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "pressurepsi",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "Status",
+          "transparent": true,
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 19,
+            "y": 0
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT f.status AS value FROM files f WHERE f.path = '${path}'"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "/.*/"
+            },
+            "textMode": "value",
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "error": {
+                      "color": "red",
+                      "index": 0
+                    },
+                    "ok": {
+                      "color": "green",
+                      "index": 1
+                    },
+                    "pending": {
+                      "color": "yellow",
+                      "index": 2
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": 6,
+          "type": "trend",
+          "title": "Pressure Trace",
+          "transparent": true,
+          "description": "Decoded pump pressure vs retention time for this run.",
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 4
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT (ord-1)::float8/GREATEST(array_length(pressure_trace,1)-1,1)*run_min AS rt_min, v AS pressure FROM runs, unnest(pressure_trace) WITH ORDINALITY u(v,ord) WHERE path='${path}' AND pressure_trace IS NOT NULL ORDER BY ord"
+            }
+          ],
+          "options": {
+            "xField": "rt_min",
+            "legend": {
+              "showLegend": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "pressurepsi",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "pointSize": 0,
+                "fillOpacity": 8,
+                "lineInterpolation": "smooth"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "rt_min"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "m"
+                  },
+                  {
+                    "id": "displayName",
+                    "value": "min"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": 7,
+          "type": "trend",
+          "title": "Chromatogram (214 nm)",
+          "transparent": true,
+          "description": "UV absorbance at 214 nm vs retention time (detector counts).",
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 4
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT (ord-1)::float8/GREATEST(array_length(chrom_trace,1)-1,1)*run_min AS rt_min, v AS absorbance FROM runs, unnest(chrom_trace) WITH ORDINALITY u(v,ord) WHERE path='${path}' AND chrom_trace IS NOT NULL ORDER BY ord"
+            }
+          ],
+          "options": {
+            "xField": "rt_min",
+            "legend": {
+              "showLegend": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "pointSize": 0,
+                "fillOpacity": 8,
+                "lineInterpolation": "smooth"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "rt_min"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "m"
+                  },
+                  {
+                    "id": "displayName",
+                    "value": "min"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": 10,
+          "type": "table",
+          "title": "Run Record",
+          "transparent": true,
+          "gridPos": {
+            "h": 12,
+            "w": 24,
+            "x": 0,
+            "y": 33
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT substring(r.path from '([^/]+)\\.lcd$') AS sample, r.instrument, r.system_id, to_char(r.acq_at AT TIME ZONE 'America/Chicago','YYYY-MM-DD HH24:MI') AS acq_at, f.status, r.is_rush, r.is_rerun, r.is_fault, r.run_min, r.p_start, r.p_2min, r.p_max, r.p_min, r.ripple, r.max_drop, r.stroke_amp, r.flow_med, r.flow_std, r.oven_med, r.trace_key, r.path FROM runs r JOIN files f USING(path) WHERE r.path = '${path}'"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "transpose",
+              "options": {}
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "volkovlabs-echarts-panel",
+          "title": "3D DAD Surface (nm \u00d7 RT \u00d7 absorbance)",
+          "transparent": true,
+          "gridPos": {
+            "h": 20,
+            "w": 24,
+            "x": 0,
+            "y": 13
+          },
+          "datasource": {
+            "type": "postgres",
+            "uid": "hplc-postgres"
+          },
+          "targets": [
+            {
+              "format": "table",
+              "rawSql": "SELECT r.dad_wl[((i-1)%r.nw)+1] AS wl, r.dad_rt[((i-1)/r.nw)+1] AS rt, zv AS z FROM (SELECT dad_wl,dad_rt,dad_z,array_length(dad_wl,1) nw FROM runs WHERE path='${path}') r, unnest(r.dad_z) WITH ORDINALITY u(zv,i) ORDER BY i"
+            }
+          ],
+          "options": {
+            "getOption": "const s = context && context.panel && context.panel.data && context.panel.data.series && context.panel.data.series[0];\nif (!s || !s.fields) return { title: { text: 'no data', textStyle: { color: '#8a97a6' } } };\nconst col = (n) => { const f = s.fields.find(f => f.name === n); const v = f ? f.values : []; return v && v.toArray ? v.toArray() : v; };\nconst wl = col('wl'), rt = col('rt'), z = col('z');\nconst pts = [];\nlet zmax = 0;\nfor (let i = 0; i < z.length; i++) { const zv = z[i] > 0 ? z[i] : 0; if (zv > zmax) zmax = zv; pts.push([wl[i], rt[i], zv]); }\nreturn {\n  backgroundColor: 'transparent', tooltip: {},\n  visualMap: { show: true, dimension: 2, min: 0, max: zmax,\n    inRange: { color: ['#440154','#414487','#2a788e','#22a884','#7ad151','#fde725'] }, textStyle: { color: '#8a97a6' } },\n  xAxis3D: { type: 'value', name: 'nm' }, yAxis3D: { type: 'value', name: 'RT (min)' }, zAxis3D: { type: 'value', name: 'Absorbance', min: 0 },\n  grid3D: {\n    boxWidth: 200, boxDepth: 120, boxHeight: 70,\n    viewControl: { autoRotate: false, rotateSensitivity: 6, zoomSensitivity: 5, panSensitivity: 3, damping: 0.15 },\n    axisLine: { lineStyle: { color: '#33404f' } }, splitLine: { lineStyle: { color: '#1e2a38' } }\n  },\n  series: [{ type: 'surface', data: pts, wireframe: { show: false }, shading: 'color' }]\n};",
+            "renderer": "canvas",
+            "editor": {
+              "height": 600,
+              "format": "auto"
+            },
+            "visualEditor": {
+              "code": "const s = context && context.panel && context.panel.data && context.panel.data.series && context.panel.data.series[0];\nif (!s || !s.fields) return { title: { text: 'no data', textStyle: { color: '#8a97a6' } } };\nconst col = (n) => { const f = s.fields.find(f => f.name === n); const v = f ? f.values : []; return v && v.toArray ? v.toArray() : v; };\nconst wl = col('wl'), rt = col('rt'), z = col('z');\nconst pts = [];\nlet zmax = 0;\nfor (let i = 0; i < z.length; i++) { const zv = z[i] > 0 ? z[i] : 0; if (zv > zmax) zmax = zv; pts.push([wl[i], rt[i], zv]); }\nreturn {\n  backgroundColor: 'transparent', tooltip: {},\n  visualMap: { show: true, dimension: 2, min: 0, max: zmax,\n    inRange: { color: ['#440154','#414487','#2a788e','#22a884','#7ad151','#fde725'] }, textStyle: { color: '#8a97a6' } },\n  xAxis3D: { type: 'value', name: 'nm' }, yAxis3D: { type: 'value', name: 'RT (min)' }, zAxis3D: { type: 'value', name: 'Absorbance', min: 0 },\n  grid3D: {\n    boxWidth: 200, boxDepth: 120, boxHeight: 70,\n    viewControl: { autoRotate: false, rotateSensitivity: 6, zoomSensitivity: 5, panSensitivity: 3, damping: 0.15 },\n    axisLine: { lineStyle: { color: '#33404f' } }, splitLine: { lineStyle: { color: '#1e2a38' } }\n  },\n  series: [{ type: 'surface', data: pts, wireframe: { show: false }, shading: 'color' }]\n};"
+            },
+            "themeEditor": {
+              "config": "{}",
+              "name": "default"
+            }
+          }
+        }
       ]
     }
