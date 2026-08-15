@@ -1,0 +1,49 @@
+---
+# Arete Tutoring — account portal + MAC 2311 tutor API.
+# Canonical: arete.floridamanweb.online
+#
+# Deliberately a SUBDOMAIN, not a path on the apex. The apex catch-all
+# (httproute-demosites.yaml) is for static demo pages; a running app with a
+# database and its own accounts gets its own hostname, so it is visible in DNS
+# and in `kubectl get httproute` rather than hidden inside another pod's nginx.
+#
+# NO authentik annotation: arete has its own login/paywall. It is not a
+# forward-auth app like site-tracker.
+#
+# FMB RBAC: Deployment/Service/PVC in theswamp = FMB applies directly.
+#           DNSRecord + HTTPRoute = cluster-admin / Flux (this file).
+#
+# REQUIRES a matching Deployment change before cutover — see ACCESS.md:
+#   ROOT_PATH        ""  (was /arete-tutoring)
+#   PUBLIC_BASE_URL  https://arete.floridamanweb.online
+# The app builds absolute links from ROOT_PATH; left at /arete-tutoring every
+# link on the new host resolves to /arete-tutoring/... and 404s.
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: arete
+  namespace: theswamp
+spec:
+  name: arete.floridamanweb.online
+  type: CNAME
+  content: floridamanweb.online
+  proxied: true
+  ttl: 1
+  interval: 5m
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: arete-tutoring
+  namespace: theswamp
+spec:
+  parentRefs:
+    - name: hwcopeland-gateway
+      namespace: kube-system
+      sectionName: floridamanweb-https
+  hostnames:
+    - "arete.floridamanweb.online"
+  rules:
+    - backendRefs:
+        - name: arete-tutoring
+          port: 8080

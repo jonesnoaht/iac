@@ -23,6 +23,7 @@ resources:
   - httproute-demosites.yaml
   - httproute-demosites-www-redirect.yaml
   - httproute-ai411.yaml
+  - httproute-arete-tutoring.yaml
   - pvc-voice.yaml
   - external-secret-voice.yaml
   - deployment-voice.yaml
