@@ -106,6 +106,9 @@ ALTER TABLE runs ADD COLUMN IF NOT EXISTS main_rt    DOUBLE PRECISION;
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS main_area  DOUBLE PRECISION;
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS integrated BOOLEAN;
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS raw_sha    TEXT;
+-- designated-target count (from CR non-Original): 1 = single-peptide purity assay
+-- (purity is the CoA value); >1 = blend/screen (purity is the main component).
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS n_identified INT;
 CREATE INDEX IF NOT EXISTS runs_purity_idx ON runs(instrument, integrated, purity);
 
 -- Parser bookkeeping: peaks_done gates the peak-table backfill of already-parsed

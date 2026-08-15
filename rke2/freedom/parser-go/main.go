@@ -240,16 +240,16 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 	}
 
 	// The instrument's own peak table — matches the CoA. Cheap to extract.
-	peaks, purity, mainRT, mainArea, nPeaks, integ := extractPeakTable(streams)
+	peaks, purity, mainRT, mainArea, nPeaks, nIdent, integ := extractPeakTable(streams)
 	hasPeaks := len(peaks) > 0
 
 	if runExists {
 		// Re-integration or peak-table backfill: only the peak table changed —
 		// reuse the already-decoded pressure metrics and PDA traces.
 		if _, err := pool.Exec(ctx, `UPDATE runs SET
-				purity=$2, n_peaks=$3, main_rt=$4, main_area=$5, integrated=$6, raw_sha=$7
+				purity=$2, n_peaks=$3, main_rt=$4, main_area=$5, integrated=$6, raw_sha=$7, n_identified=$8
 				WHERE path=$1`,
-			key, fp(purity, integ), nPeaks, fp(mainRT, hasPeaks), fp(mainArea, hasPeaks), integ, rsha); err != nil {
+			key, fp(purity, integ), nPeaks, fp(mainRT, hasPeaks), fp(mainArea, hasPeaks), integ, rsha, nIdent); err != nil {
 			return err
 		}
 	} else {
@@ -303,9 +303,9 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 			INSERT INTO runs(path,instrument,system_id,acq_at,run_min,p_start,p_max,p_min,
 				p_2min,ripple,max_drop,stroke_amp,flow_med,flow_std,oven_med,trace_key,chrom_key,
 				pressure_trace,chrom_trace,chrom_nm,dad_wl,dad_rt,dad_z,
-				purity,n_peaks,main_rt,main_area,integrated,raw_sha)
+				purity,n_peaks,main_rt,main_area,integrated,raw_sha,n_identified)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,
-				$24,$25,$26,$27,$28,$29)
+				$24,$25,$26,$27,$28,$29,$30)
 			ON CONFLICT(path) DO UPDATE SET
 				instrument=EXCLUDED.instrument, system_id=EXCLUDED.system_id, acq_at=EXCLUDED.acq_at,
 				run_min=EXCLUDED.run_min, p_2min=EXCLUDED.p_2min, stroke_amp=EXCLUDED.stroke_amp,
@@ -318,11 +318,12 @@ func processOne(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool
 				dad_rt=COALESCE(EXCLUDED.dad_rt, runs.dad_rt),
 				dad_z=COALESCE(EXCLUDED.dad_z, runs.dad_z),
 				purity=EXCLUDED.purity, n_peaks=EXCLUDED.n_peaks, main_rt=EXCLUDED.main_rt,
-				main_area=EXCLUDED.main_area, integrated=EXCLUDED.integrated, raw_sha=EXCLUDED.raw_sha`,
+				main_area=EXCLUDED.main_area, integrated=EXCLUDED.integrated, raw_sha=EXCLUDED.raw_sha,
+				n_identified=EXCLUDED.n_identified`,
 			key, inst, m.SystemID, m.AcqAt, m.RunMin, m.PStart, m.PMax, m.PMin,
 			m.P2Min, m.Ripple, m.MaxDrop, m.StrokeAmp, m.FlowMed, m.FlowStd, m.OvenMed, dkey, chromKey,
 			pressureTrace, chromTrace, chromNm, dadWl, dadRt, dadZ,
-			fp(purity, integ), nPeaks, fp(mainRT, hasPeaks), fp(mainArea, hasPeaks), integ, rsha); err != nil {
+			fp(purity, integ), nPeaks, fp(mainRT, hasPeaks), fp(mainArea, hasPeaks), integ, rsha, nIdent); err != nil {
 			return err
 		}
 	}

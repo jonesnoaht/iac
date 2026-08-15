@@ -43,9 +43,9 @@ func peaksFile(path string) {
 		fmt.Println("ole:", err)
 		os.Exit(1)
 	}
-	peaks, purity, mainRT, mainArea, n, integ := extractPeakTable(streams)
-	fmt.Printf("integrated=%v purity=%.3f n_peaks=%d main_rt=%.3f main_area=%.1f\n",
-		integ, purity, n, mainRT, mainArea)
+	peaks, purity, mainRT, mainArea, n, nIdent, integ := extractPeakTable(streams)
+	fmt.Printf("integrated=%v purity=%.3f n_peaks=%d n_identified=%d main_rt=%.3f main_area=%.1f\n",
+		integ, purity, n, nIdent, mainRT, mainArea)
 	for _, p := range peaks {
 		fmt.Printf("  idx=%d rt=%.3f area=%.1f height=%.1f area%%=%.3f\n",
 			p.Idx, p.RT, p.Area, p.Height, p.AreaPct)
@@ -194,12 +194,52 @@ func nearestPct(pct map[float64]float64, area float64) float64 {
 	return 0
 }
 
-// extractPeakTable merges CR (rt/area/height) with PT (reported area-%/purity),
-// sorted largest-area first. integrated is true only when a valid PT table was
-// found (i.e. an analyst integrated the run).
-func extractPeakTable(streams map[string][]byte) (peaks []Peak, purity, mainRT, mainArea float64, nPeaks int, integrated bool) {
+// crIdentified returns the analyst-designated target compounds (rt + area>0)
+// from the non-Original CR-PDA stream. A targeted purity assay narrows this to
+// one compound (the analyte); a blend/screen leaves many.
+func crIdentified(streams map[string][]byte) []Peak {
+	var raw []byte
+	for k, v := range streams {
+		if strings.HasPrefix(base(k), "CR-PDA") && !strings.Contains(k, "Original") {
+			raw = v
+			break
+		}
+	}
+	if raw == nil {
+		return nil
+	}
+	var root crRoot
+	if err := xml.Unmarshal(raw, &root); err != nil {
+		return nil
+	}
+	var out []Peak
+	for _, c := range root.Comps {
+		if a := dtox(c.A); a > 0 {
+			out = append(out, Peak{RT: float64(c.RT) / 100000.0, Area: a})
+		}
+	}
+	return out
+}
+
+func nearestRTIdx(peaks []Peak, rt float64) int {
+	idx, best := -1, math.Inf(1)
+	for i, p := range peaks {
+		if d := math.Abs(p.RT - rt); d < best {
+			best, idx = d, i
+		}
+	}
+	return idx
+}
+
+// extractPeakTable merges CR (rt/area/height) with PT (reported area-%), sorted
+// largest-area first. purity is the area-% of the peak that carries the reported
+// value: the single designated target when there is exactly one (the CoA purity),
+// otherwise the largest peak past the ~void cutoff (so the solvent front is never
+// mistaken for the analyte). nIdent is the designated-target count — >1 marks a
+// blend, which has no single purity. integrated is true when a PT table exists.
+func extractPeakTable(streams map[string][]byte) (peaks []Peak, purity, mainRT, mainArea float64, nPeaks, nIdent int, integrated bool) {
 	cr := crPeaks(streams)
-	ptPur, ptN, ptPct, ptOK := ptPurity(streams)
+	_, ptN, ptPct, ptOK := ptPurity(streams)
 	if ptOK {
 		for i := range cr {
 			cr[i].AreaPct = nearestPct(ptPct, cr[i].Area)
@@ -210,11 +250,35 @@ func extractPeakTable(streams map[string][]byte) (peaks []Peak, purity, mainRT, 
 		cr[i].Idx = i
 	}
 	peaks = cr
-	if len(cr) > 0 {
-		mainRT, mainArea = cr[0].RT, cr[0].Area
+
+	ident := crIdentified(streams)
+	nIdent = len(ident)
+
+	// Pick the peak whose area-% is the reported purity.
+	const voidCut = 1.0 // min; peaks before this are column void / solvent front
+	pick := -1
+	if nIdent == 1 {
+		pick = nearestRTIdx(cr, ident[0].RT) // the one designated target
+	} else {
+		for i, p := range cr { // cr is area-desc; first past the void
+			if p.RT >= voidCut {
+				pick = i
+				break
+			}
+		}
+	}
+	if pick < 0 && len(cr) > 0 {
+		pick = 0 // fallback: largest peak
+	}
+
+	if pick >= 0 && pick < len(cr) {
+		mainRT, mainArea = cr[pick].RT, cr[pick].Area
 	}
 	if ptOK {
-		purity, nPeaks, integrated = ptPur, ptN, true
+		integrated, nPeaks = true, ptN
+		if pick >= 0 && pick < len(cr) {
+			purity = cr[pick].AreaPct
+		}
 	} else {
 		nPeaks = len(cr)
 	}
