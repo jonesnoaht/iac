@@ -18,6 +18,7 @@ data:
       "uid": "hplc-run-detail",
       "editable": true,
       "schemaVersion": 39,
+      "timezone": "America/Chicago",
       "time": {"from": "now-90d", "to": "now"},
       "templating": {"list": [
         {"name": "path", "type": "textbox", "label": "run key", "query": "", "current": {"text": "", "value": ""}}
@@ -76,7 +77,7 @@ data:
 
         {"id": 10, "type": "table", "title": "Run Record", "transparent": true, "gridPos": {"h": 12, "w": 24, "x": 0, "y": 13},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT substring(r.path from '([^/]+)\\.lcd$') AS sample, r.instrument, r.system_id, r.acq_at, f.status, r.is_rush, r.is_rerun, r.is_fault, r.run_min, r.p_start, r.p_2min, r.p_max, r.p_min, r.ripple, r.max_drop, r.stroke_amp, r.flow_med, r.flow_std, r.oven_med, r.trace_key, r.path FROM runs r JOIN files f USING(path) WHERE r.path = '${path}'"}],
+         "targets": [{"format": "table", "rawSql": "SELECT substring(r.path from '([^/]+)\\.lcd$') AS sample, r.instrument, r.system_id, to_char(r.acq_at AT TIME ZONE 'America/Chicago','YYYY-MM-DD HH24:MI') AS acq_at, f.status, r.is_rush, r.is_rerun, r.is_fault, r.run_min, r.p_start, r.p_2min, r.p_max, r.p_min, r.ripple, r.max_drop, r.stroke_amp, r.flow_med, r.flow_std, r.oven_med, r.trace_key, r.path FROM runs r JOIN files f USING(path) WHERE r.path = '${path}'"}],
          "transformations": [{"id": "transpose", "options": {}}]}
       ]
     }

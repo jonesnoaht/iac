@@ -59,6 +59,50 @@ spec:
               Elevated pump-stroke amplitude with pressure still normal on
               {{ $labels.instrument }} — a developing head fault / debris event that may
               precede full failure. Inspect before the next batch.
+    - name: hplc-drift
+      rules:
+        # Silent flow deficit (replay-validated 8/14 over 19,540 runs): void time
+        # drifting late while pressure sags, no stroke signature. Fired 38 h ahead
+        # of hope's 8/13 head failure; 2 false intervals in 8.5 months.
+        # for: 60m ≈ 3 runs sustain at the 20-min cadence.
+        - alert: HplcFlowDeficit
+          expr: hplc_t0_ratio > 1.10 and hplc_p2_ratio < 0.95
+          for: 60m
+          labels: { severity: warning }
+          annotations:
+            summary: "HPLC flow deficit on {{ $labels.instrument }} (t0 {{ $value | printf \"%.2f\" }}x late, pressure sagging)"
+            description: >-
+              Void time on {{ $labels.instrument }} is running >10% late with pressure
+              below baseline and normal pump stroke — the silent under-delivery mode
+              (check valve/debris or seal). On hope this signature led the 8/13 head
+              failure by ~38 h. Purge the pump / inspect check valves before results
+              drift past RT tolerance (~1 day at observed rates).
+        # Both instruments drifting late together = shared cause (mobile-phase
+        # batch), not a pump. Replay: 7/11-12 fired on both systems at once.
+        - alert: HplcSystemicShift
+          expr: count(hplc_t0_ratio > 1.08) >= 2
+          for: 60m
+          labels: { severity: warning }
+          annotations:
+            summary: "HPLC systemic RT shift — multiple instruments drifting together"
+            description: >-
+              Two or more instruments show simultaneous void-time drift. That is a
+              shared-cause event (mobile-phase batch, water quality), not a pump fault.
+              Check the most recent mobile-phase prep.
+        # Analyte absence: sample runs producing no main peak (empty injections,
+        # plumbing errors — e.g. the 8/14 reversed-flow hookup on hope). Validated:
+        # only 2 historical streaks in 8.5 months, both real events.
+        - alert: HplcAnalyteAbsence
+          expr: hplc_absent_recent >= 4
+          for: 0m
+          labels: { severity: critical }
+          annotations:
+            summary: "HPLC analyte ABSENCE on {{ $labels.instrument }} — runs are empty"
+            description: >-
+              At least 4 of the last 5 sample runs on {{ $labels.instrument }} have no
+              analyte peak (main peak <30k counts; normal is 300k-4M). Injections are
+              not reaching the detector — empty vials, autosampler fault, or plumbing
+              error. Every affected run needs re-injection once fixed.
     - name: hplc-pipeline
       rules:
         - alert: HplcParseErrors

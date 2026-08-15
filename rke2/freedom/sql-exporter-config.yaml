@@ -60,6 +60,39 @@ collectors:
         query: |
           SELECT DISTINCT ON (instrument) instrument, extract(epoch FROM acq_at) ts
           FROM runs WHERE acq_at IS NOT NULL ORDER BY instrument, acq_at DESC
+      # --- replay-validated drift detectors (see alerting.sql / UPDATES-GOLIVE.md) ---
+      - metric_name: hplc_t0_ratio
+        type: gauge
+        help: 'rolling-median void time (12 runs) vs trailing [-8d,-1d] baseline; >1.10 with p2 low = flow deficit'
+        key_labels: [instrument]
+        values: [t0_ratio]
+        query: 'SELECT instrument, t0_ratio FROM detector_state WHERE t0_ratio IS NOT NULL'
+      - metric_name: hplc_p2_ratio
+        type: gauge
+        help: 'rolling-median p_2min (12 runs) vs trailing [-8d,-1d] baseline'
+        key_labels: [instrument]
+        values: [p2_ratio]
+        query: 'SELECT instrument, p2_ratio FROM detector_state WHERE p2_ratio IS NOT NULL'
+      - metric_name: hplc_absent_recent
+        type: gauge
+        help: 'of the last 5 non-blank runs, how many have main_h < 30000 (no analyte peak); >=4 = analyte absence'
+        key_labels: [instrument]
+        values: [absent_ct]
+        query: 'SELECT instrument, absent_ct FROM detector_state'
+      # Materializer: derives features for new runs from chrom_trace so the
+      # detector views stay warm. Data-modifying CTE runs at scrape cadence.
+      - metric_name: hplc_features_materialized
+        type: gauge
+        help: 'run_features rows inserted this scrape (from chrom_trace)'
+        values: [n]
+        query: |
+          WITH ins AS (
+            INSERT INTO run_features (path, t0_rt, t0_amp, main_rt, main_h, src)
+            SELECT path, t0_rt, t0_amp, main_rt, main_h, 'chrom_trace'
+            FROM run_features_missing LIMIT 200
+            ON CONFLICT (path) DO NOTHING
+            RETURNING 1)
+          SELECT count(*) n FROM ins
       - metric_name: hplc_parse_errors
         type: gauge
         help: 'files in error state'

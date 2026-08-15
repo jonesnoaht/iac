@@ -16,7 +16,7 @@ data:
       "title": "HPLC Instruments",
       "uid": "hplc-instruments",
       "editable": true,
-      "timezone": "browser",
+      "timezone": "America/Chicago",
       "time": {"from": "now-30d", "to": "now"},
       "refresh": "5m",
       "schemaVersion": 39,
@@ -67,7 +67,7 @@ data:
          "description": "Runs with stroke amplitude above 1.5 (orange) / 2.0 fault (red).",
          "gridPos": {"h": 9, "w": 24, "x": 0, "y": 15},
          "datasource": {"type": "postgres", "uid": "hplc-postgres"},
-         "targets": [{"format": "table", "rawSql": "SELECT to_char(acq_at,'MM-DD HH24:MI') AS ran, instrument, split_part(substring(path from '([^/]+)\\.lcd$'),'_',1) AS accession, round(stroke_amp::numeric,2) AS pump, round(p_2min) AS psi_2min, ripple, max_drop FROM runs WHERE stroke_amp > 1.5 AND instrument IN ($instrument) ORDER BY acq_at DESC LIMIT 100"}],
+         "targets": [{"format": "table", "rawSql": "SELECT to_char(acq_at AT TIME ZONE 'America/Chicago','MM-DD HH24:MI') AS ran, instrument, split_part(substring(path from '([^/]+)\\.lcd$'),'_',1) AS accession, round(stroke_amp::numeric,2) AS pump, round(p_2min) AS psi_2min, ripple, max_drop FROM runs WHERE stroke_amp > 1.5 AND instrument IN ($instrument) ORDER BY acq_at DESC LIMIT 100"}],
          "fieldConfig": {"defaults": {"custom": {"align": "center"}}, "overrides": [
            {"matcher": {"id": "byName", "options": "pump"}, "properties": [
              {"id": "custom.cellOptions", "value": {"type": "color-text"}}, {"id": "decimals", "value": 2},

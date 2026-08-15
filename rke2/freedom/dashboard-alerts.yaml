@@ -1,0 +1,99 @@
+---
+# HPLC Alert Log — detector state over time + a log of every firing run.
+# Backed by the detector_state / detector_log views (alerting.sql), which run
+# the replay-validated rules (D1 flow-deficit, D2 dead-head, D3 analyte-absence)
+# over whatever time range Grafana asks for.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hplc-dashboard-alerts
+  namespace: freedom
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: HPLC
+data:
+  hplc-alerts.json: |
+    {
+      "title": "HPLC Alert Log",
+      "uid": "hplc-alert-log",
+      "editable": true,
+      "time": {"from": "now-30d", "to": "now"},
+      "refresh": "5m",
+      "schemaVersion": 39,
+      "panels": [
+        {"id": 1, "type": "table", "title": "current detector state", "transparent": true,
+         "gridPos": {"h": 5, "w": 24, "x": 0, "y": 0},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT instrument, CASE WHEN absent_ct >= 4 THEN 'NO ANALYTE' WHEN t0_ratio > 1.10 AND p2_ratio < 0.95 THEN 'FLOW DEFICIT' ELSE 'OK' END AS status, round(t0_ratio::numeric,3) AS \"t0 ratio\", round(p2_ratio::numeric,3) AS \"pressure ratio\", absent_ct AS \"empty of last 5\" FROM detector_state ORDER BY instrument"}],
+         "options": {"showHeader": true, "cellHeight": "lg"},
+         "fieldConfig": {
+           "defaults": {"custom": {"align": "center", "cellOptions": {"type": "auto"}}},
+           "overrides": [
+             {"matcher": {"id": "byName", "options": "instrument"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "mappings", "value": [{"type": "value", "options": {
+                 "helsa": {"color": "purple", "index": 0}, "hope": {"color": "blue", "index": 1}}}]}]},
+             {"matcher": {"id": "byName", "options": "status"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "mappings", "value": [{"type": "value", "options": {
+                 "OK": {"color": "green", "text": "ok", "index": 0},
+                 "FLOW DEFICIT": {"color": "orange", "index": 1},
+                 "NO ANALYTE": {"color": "red", "index": 2}}}]}]},
+             {"matcher": {"id": "byName", "options": "t0 ratio"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+                 {"color": "text", "value": null}, {"color": "orange", "value": 1.08}, {"color": "red", "value": 1.10}]}}]},
+             {"matcher": {"id": "byName", "options": "pressure ratio"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+                 {"color": "red", "value": null}, {"color": "orange", "value": 0.8}, {"color": "text", "value": 0.95}]}}]},
+             {"matcher": {"id": "byName", "options": "empty of last 5"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "thresholds", "value": {"mode": "absolute", "steps": [
+                 {"color": "text", "value": null}, {"color": "orange", "value": 2}, {"color": "red", "value": 4}]}}]}
+           ]}},
+        {"id": 2, "type": "state-timeline", "title": "detector state by run", "transparent": true,
+         "gridPos": {"h": 8, "w": 24, "x": 0, "y": 5},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "time_series", "rawSql": "SELECT acq_at AS time, instrument AS metric, (CASE WHEN d2 THEN 3 WHEN d3 THEN 2 WHEN d1 THEN 1 ELSE 0 END)::float AS value FROM detector_log WHERE $__timeFilter(acq_at) ORDER BY 1"}],
+         "options": {"showValue": "never", "legend": {"showLegend": false}, "tooltip": {"mode": "single"}, "rowHeight": 0.85, "mergeValues": true},
+         "fieldConfig": {
+           "defaults": {
+             "custom": {"fillOpacity": 80, "lineWidth": 0},
+             "mappings": [{"type": "value", "options": {
+               "0": {"color": "dark-green", "text": "ok", "index": 0},
+               "1": {"color": "orange", "text": "flow deficit", "index": 1},
+               "2": {"color": "red", "text": "no analyte", "index": 2},
+               "3": {"color": "dark-red", "text": "head failure", "index": 3}}}]},
+           "overrides": []}},
+        {"id": 3, "type": "table", "title": "firing runs", "transparent": true,
+         "gridPos": {"h": 14, "w": 24, "x": 0, "y": 13},
+         "datasource": {"type": "postgres", "uid": "hplc-postgres"},
+         "targets": [{"format": "table", "rawSql": "SELECT to_char(acq_at,'MM-DD HH24:MI') AS ran, instrument, NULLIF(trim(concat_ws(' ', CASE WHEN d1 THEN 'FLOW-DEFICIT' END, CASE WHEN d2 THEN 'HEAD-FAILURE' END, CASE WHEN d3 THEN 'NO-ANALYTE' END)),'') AS alert, round(t0_ratio::numeric,3) AS \"t0 ratio\", round(p2_ratio::numeric,3) AS \"p ratio\", round(stroke_amp::numeric,2) AS pump, round(p_2min::numeric,0) AS p2, split_part(substring(path from '([^/]+)\\.lcd$'),'_',1) AS accession, path, acq_at AS _t FROM detector_log WHERE (d1 OR d2 OR d3) AND $__timeFilter(acq_at) ORDER BY acq_at DESC LIMIT 500"}],
+         "options": {"showHeader": true, "cellHeight": "md"},
+         "fieldConfig": {
+           "defaults": {"custom": {"align": "center", "cellOptions": {"type": "auto"}}},
+           "overrides": [
+             {"matcher": {"id": "byName", "options": "instrument"}, "properties": [
+               {"id": "custom.width", "value": 90},
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "mappings", "value": [{"type": "value", "options": {
+                 "helsa": {"color": "purple", "index": 0}, "hope": {"color": "blue", "index": 1}}}]}]},
+             {"matcher": {"id": "byName", "options": "alert"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+               {"id": "mappings", "value": [
+                 {"type": "value", "options": {
+                   "FLOW-DEFICIT": {"color": "orange", "index": 0},
+                   "NO-ANALYTE": {"color": "red", "index": 1},
+                   "HEAD-FAILURE": {"color": "dark-red", "index": 2}}},
+                 {"type": "special", "options": {"match": "null", "result": {"color": "text", "index": 3}}}]}]},
+             {"matcher": {"id": "byName", "options": "accession"}, "properties": [
+               {"id": "custom.width", "value": 130},
+               {"id": "links", "value": [{"title": "Open run detail", "url": "/d/hplc-run-detail?var-path=${__data.fields.path}"}]}]},
+             {"matcher": {"id": "byName", "options": "ran"}, "properties": [{"id": "custom.width", "value": 110}]},
+             {"matcher": {"id": "byName", "options": "path"}, "properties": [{"id": "custom.hidden", "value": true}]},
+             {"matcher": {"id": "byName", "options": "_t"}, "properties": [{"id": "custom.hidden", "value": true}]}
+           ]}}
+      ]
+    }
