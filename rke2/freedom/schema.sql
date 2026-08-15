@@ -75,3 +75,43 @@ ALTER TABLE runs ADD COLUMN IF NOT EXISTS chrom_nm       DOUBLE PRECISION;
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS dad_wl DOUBLE PRECISION[];
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS dad_rt DOUBLE PRECISION[];
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS dad_z  DOUBLE PRECISION[];
+
+-- UV band maxima per run (computed from dad_z) for the impurity scan: peptide
+-- band 200-230, aromatic/mid 240-290 (Trp/Tyr or impurity), high 300-450
+-- (unambiguously non-peptide chromophore). Backfilled once via UPDATE.
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS uv_pep DOUBLE PRECISION;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS uv_mid DOUBLE PRECISION;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS uv_hi  DOUBLE PRECISION;
+
+-- LabSolutions' own peak table, decoded from the .lcd (CR-PDA XML for rt/area/
+-- height, PT-PDA binary for reported area-%). These are the numbers on the CoA
+-- — the instrument's manual integration, not a re-integration.
+CREATE TABLE IF NOT EXISTS peaks (
+  path      TEXT NOT NULL REFERENCES runs(path) ON DELETE CASCADE,
+  idx       INT  NOT NULL,           -- 0 = main (largest area)
+  rt        DOUBLE PRECISION,        -- minutes
+  area      DOUBLE PRECISION,
+  height    DOUBLE PRECISION,
+  area_pct  DOUBLE PRECISION,        -- reported area-% (main peak's = purity)
+  PRIMARY KEY (path, idx)
+);
+CREATE INDEX IF NOT EXISTS peaks_path ON peaks(path);
+
+-- Run-level quant summary + raw-acquisition fingerprint. raw_sha hashes only the
+-- acquisition streams (never the peak table), so a re-integration re-upload keeps
+-- it stable while a different run on the same key changes it — the safety guard.
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS purity     DOUBLE PRECISION;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS n_peaks    INT;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS main_rt    DOUBLE PRECISION;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS main_area  DOUBLE PRECISION;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS integrated BOOLEAN;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS raw_sha    TEXT;
+CREATE INDEX IF NOT EXISTS runs_purity_idx ON runs(instrument, integrated, purity);
+
+-- Parser bookkeeping: peaks_done gates the peak-table backfill of already-parsed
+-- runs; reintegrated counts re-parses from changed re-uploads. status can now be
+-- 'raw_changed' — acquisition data changed under an existing run, held for review.
+ALTER TABLE files ADD COLUMN IF NOT EXISTS peaks_done   BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE files ADD COLUMN IF NOT EXISTS reintegrated INT NOT NULL DEFAULT 0;
+
+GRANT SELECT ON peaks TO grafana_ro;
