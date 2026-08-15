@@ -4,9 +4,13 @@
 #
 # Student notes (matching site-tracker / voice-agent / demo-mcp):
 # - Image pinned by digest + Flux ImagePolicy setter marker
+#   Digest must resolve in zot before commit (live pod imageID / crane manifest).
 # - Secrets via ExternalSecret (external-secret-arete.yaml), not hand kubectl
 # - ROOT_PATH empty: app is at host root, not a path prefix
 # - CRYPTO_PAYMENTS_ENABLED false until CRYPTO_RECEIVE_ADDRESSES exist in vault
+# - ALLOW_DEV_SUBSCRIBE false on public host (no open self-subscribe / phone whitelist)
+# - Neuralwatt: optional tutor LLM egress (NEURALWATT_*); key in vault when used
+# - STRIPE_ENABLED false until Stripe is deliberately enabled
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,7 +32,9 @@ spec:
         - name: zot-pull-secret
       containers:
         - name: arete-tutoring
-          image: zot.hwcopeland.net/florida-man-bioscience/arete-tutoring:main@sha256:53866faeef3b5b5696e0460c8813dbc5e49699f352afea56639b837a67d2b115 # {"$imagepolicy": "tooling:arete-tutoring"}
+          # Live main as of 2026-08-15 (pod imageID). Was 53866fae (MANIFEST_UNKNOWN).
+          image: zot.hwcopeland.net/florida-man-bioscience/arete-tutoring:main@sha256:f866bb3b10702f939816e30a00c2eac1ad6b654cbee1be90060f33387b71eac1 # {"$imagepolicy": "tooling:arete-tutoring"}
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           env:
@@ -54,22 +60,34 @@ spec:
                 secretKeyRef:
                   name: arete-tutoring-secrets
                   key: CRYPTO_ADMIN_TOKEN
-            # Optional tutor LLM — may be "unused" in vault until wired
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: arete-tutoring-secrets
                   key: OPENAI_API_KEY
+            - name: CRYPTO_RECEIVE_ADDRESSES
+              valueFrom:
+                secretKeyRef:
+                  name: arete-tutoring-secrets
+                  key: CRYPTO_RECEIVE_ADDRESSES
+                  optional: true
             - name: CRYPTO_PAYMENTS_ENABLED
               value: "false"
             - name: CRYPTO_SEMESTER_PRICE_USD
               value: "149"
             - name: CRYPTO_MONTH_PRICE_USD
               value: "49"
+            # Public host: must stay false until real invite/auth gate exists
             - name: ALLOW_DEV_SUBSCRIBE
-              value: "true" # beta testers — flip false when paid checkout is real
+              value: "false"
             - name: STRIPE_ENABLED
               value: "false"
+            # Faithful capture of live hand-applied config (Hampton review)
+            - name: OPENAI_BASE_URL
+              value: https://api.openai.com/v1
+            - name: OPENAI_MODEL
+              value: gpt-4o-mini
+            # Tutor LLM via Neuralwatt (third-party egress — disclosed in PR body)
             - name: NEURALWATT_BASE_URL
               value: https://api.neuralwatt.com/v1
             - name: NEURALWATT_MODEL
