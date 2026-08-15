@@ -221,25 +221,17 @@ func crIdentified(streams map[string][]byte) []Peak {
 	return out
 }
 
-func nearestRTIdx(peaks []Peak, rt float64) int {
-	idx, best := -1, math.Inf(1)
-	for i, p := range peaks {
-		if d := math.Abs(p.RT - rt); d < best {
-			best, idx = d, i
-		}
-	}
-	return idx
-}
 
 // extractPeakTable merges CR (rt/area/height) with PT (reported area-%), sorted
-// largest-area first. purity is the area-% of the peak that carries the reported
-// value: the single designated target when there is exactly one (the CoA purity),
-// otherwise the largest peak past the ~void cutoff (so the solvent front is never
-// mistaken for the analyte). nIdent is the designated-target count — >1 marks a
-// blend, which has no single purity. integrated is true when a PT table exists.
+// largest-area first. For an area-normalization purity assay the reported purity
+// is the main peak's area-% — and the main peak is the largest, whatever its RT
+// (many analytes, e.g. GHK-Cu, legitimately elute at the column void, so an RT
+// cutoff would wrongly discard them). nIdent is the designated-target count from
+// the non-Original CR stream; >1 marks a blend, which has no single purity and
+// should be excluded from purity analysis. integrated is true when a PT exists.
 func extractPeakTable(streams map[string][]byte) (peaks []Peak, purity, mainRT, mainArea float64, nPeaks, nIdent int, integrated bool) {
 	cr := crPeaks(streams)
-	_, ptN, ptPct, ptOK := ptPurity(streams)
+	ptPur, ptN, ptPct, ptOK := ptPurity(streams)
 	if ptOK {
 		for i := range cr {
 			cr[i].AreaPct = nearestPct(ptPct, cr[i].Area)
@@ -250,35 +242,13 @@ func extractPeakTable(streams map[string][]byte) (peaks []Peak, purity, mainRT, 
 		cr[i].Idx = i
 	}
 	peaks = cr
+	nIdent = len(crIdentified(streams))
 
-	ident := crIdentified(streams)
-	nIdent = len(ident)
-
-	// Pick the peak whose area-% is the reported purity.
-	const voidCut = 1.0 // min; peaks before this are column void / solvent front
-	pick := -1
-	if nIdent == 1 {
-		pick = nearestRTIdx(cr, ident[0].RT) // the one designated target
-	} else {
-		for i, p := range cr { // cr is area-desc; first past the void
-			if p.RT >= voidCut {
-				pick = i
-				break
-			}
-		}
-	}
-	if pick < 0 && len(cr) > 0 {
-		pick = 0 // fallback: largest peak
-	}
-
-	if pick >= 0 && pick < len(cr) {
-		mainRT, mainArea = cr[pick].RT, cr[pick].Area
+	if len(cr) > 0 {
+		mainRT, mainArea = cr[0].RT, cr[0].Area // largest peak = main analyte
 	}
 	if ptOK {
-		integrated, nPeaks = true, ptN
-		if pick >= 0 && pick < len(cr) {
-			purity = cr[pick].AreaPct
-		}
+		purity, nPeaks, integrated = ptPur, ptN, true // ptPur = the max area-%
 	} else {
 		nPeaks = len(cr)
 	}
