@@ -1,0 +1,98 @@
+---
+# Arete Tutoring app — canonical host arete.floridamanweb.online
+# (DNSRecord + HTTPRoute owned in httproute-arete-tutoring.yaml by cluster-admin).
+#
+# Student notes (matching site-tracker / voice-agent / demo-mcp):
+# - Image pinned by digest + Flux ImagePolicy setter marker
+# - Secrets via ExternalSecret (external-secret-arete.yaml), not hand kubectl
+# - ROOT_PATH empty: app is at host root, not a path prefix
+# - CRYPTO_PAYMENTS_ENABLED false until CRYPTO_RECEIVE_ADDRESSES exist in vault
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arete-tutoring
+  namespace: theswamp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO volume (SQLite) — old pod must release it first
+  selector:
+    matchLabels:
+      app: arete-tutoring
+  template:
+    metadata:
+      labels:
+        app: arete-tutoring
+    spec:
+      imagePullSecrets:
+        - name: zot-pull-secret
+      containers:
+        - name: arete-tutoring
+          image: zot.hwcopeland.net/florida-man-bioscience/arete-tutoring:main@sha256:53866faeef3b5b5696e0460c8813dbc5e49699f352afea56639b837a67d2b115 # {"$imagepolicy": "tooling:arete-tutoring"}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PUBLIC_BASE_URL
+              value: https://arete.floridamanweb.online
+            # Empty: subdomain serves the app at /. Do not set /arete-tutoring here.
+            - name: ROOT_PATH
+              value: ""
+            - name: DATABASE_URL
+              value: sqlite:////data/arete_tutoring.db
+            - name: APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: arete-tutoring-secrets
+                  key: APP_SECRET
+            - name: VOICE_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: arete-tutoring-secrets
+                  key: VOICE_SHARED_SECRET
+            - name: CRYPTO_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: arete-tutoring-secrets
+                  key: CRYPTO_ADMIN_TOKEN
+            # Optional tutor LLM — may be "unused" in vault until wired
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arete-tutoring-secrets
+                  key: OPENAI_API_KEY
+            - name: CRYPTO_PAYMENTS_ENABLED
+              value: "false"
+            - name: CRYPTO_SEMESTER_PRICE_USD
+              value: "149"
+            - name: CRYPTO_MONTH_PRICE_USD
+              value: "49"
+            - name: ALLOW_DEV_SUBSCRIBE
+              value: "false"
+            - name: STRIPE_ENABLED
+              value: "false"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: arete-tutoring-data

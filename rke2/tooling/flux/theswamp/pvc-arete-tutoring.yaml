@@ -1,0 +1,15 @@
+---
+# SQLite + session state for Arete Tutoring (arete.floridamanweb.online).
+# RWO + Recreate strategy on the Deployment (same as voice-agent / site-tracker).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arete-tutoring-data
+  namespace: theswamp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi

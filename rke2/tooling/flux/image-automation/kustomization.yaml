@@ -16,3 +16,5 @@ resources:
   - image-policy-voice-agent.yaml
   - image-repository-site-tracker.yaml
   - image-policy-site-tracker.yaml
+  - image-repository-arete-tutoring.yaml
+  - image-policy-arete-tutoring.yaml

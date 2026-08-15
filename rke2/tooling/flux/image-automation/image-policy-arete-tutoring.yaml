@@ -1,0 +1,18 @@
+---
+# Same digest-reflection pattern as demo-mcp / voice-agent: the "main" tag is
+# stable, so track the digest behind it.
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: arete-tutoring
+  namespace: tooling
+spec:
+  imageRepositoryRef:
+    name: arete-tutoring
+  filterTags:
+    pattern: '^main$'
+  policy:
+    alphabetical:
+      order: asc
+  digestReflectionPolicy: Always
+  interval: 1m0s
