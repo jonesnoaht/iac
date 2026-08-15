@@ -67,9 +67,18 @@ spec:
             - name: CRYPTO_MONTH_PRICE_USD
               value: "49"
             - name: ALLOW_DEV_SUBSCRIBE
-              value: "false"
+              value: "true" # beta testers — flip false when paid checkout is real
             - name: STRIPE_ENABLED
               value: "false"
+            - name: NEURALWATT_BASE_URL
+              value: https://api.neuralwatt.com/v1
+            - name: NEURALWATT_MODEL
+              value: glm-5.2-short-fast
+            - name: NEURALWATT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arete-tutoring-secrets
+                  key: NEURALWATT_API_KEY
           volumeMounts:
             - name: data
               mountPath: /data
