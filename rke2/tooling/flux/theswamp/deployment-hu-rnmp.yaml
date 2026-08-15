@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hu-rnmp-browser
+  namespace: theswamp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO volume — old pod must release it first
+  selector:
+    matchLabels:
+      app: hu-rnmp-browser
+  template:
+    metadata:
+      labels:
+        app: hu-rnmp-browser
+    spec:
+      imagePullSecrets:
+        - name: zot-pull-secret
+      containers:
+        - name: browser
+          # Digest taken from the running theswamp pod (2026-08-15):
+          #   kubectl -n theswamp get pod -l app=hu-rnmp-browser
+          #     -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'
+          # No ImagePolicy in this PR — pinning only; auto-bump is a
+          # separate Flux change if tutor wants it.
+          image: zot.hwcopeland.net/jonesnoaht/hu-rnmp-browser:main@sha256:1a76249e94594bef53ab9d6565b90de5646852cdf83a0483066b94072651e74c
+          ports:
+            - containerPort: 8050
+          env:
+            - name: RESULTS_DIR
+              value: /results
+            - name: PORT
+              value: "8050"
+          volumeMounts:
+            - name: data
+              mountPath: /results
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8050
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8050
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hu-rnmp-data

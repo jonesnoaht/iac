@@ -1,0 +1,16 @@
+---
+# Persists HU-rNMP browser results (and later pipeline outputs) across
+# restarts. Size matches the already-bound theswamp PVC `hu-rnmp-data`
+# (verified `kubectl -n theswamp get pvc hu-rnmp-data` = 50Gi RWO longhorn).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hu-rnmp-data
+  namespace: theswamp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 50Gi

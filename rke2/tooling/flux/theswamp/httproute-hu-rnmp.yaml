@@ -1,0 +1,47 @@
+---
+# HU-rNMP pipeline results browser — hu-rnmp.flmanbiosci.net
+#
+# DNSRecord + HTTPRoute shape copied from siblings on origin/main
+# 612fa03c (verified with `git show origin/main:<path>`):
+#   - rke2/tooling/flux/theswamp/httproute.yaml          (peptodyssey DNSRecord)
+#   - rke2/tooling/flux/theswamp/portfolio-landings.yaml (cytogate CNAME + route)
+#   - rke2/tooling/flux/theswamp/httproute-arete-tutoring.yaml
+#     (public app host, no Authentik annotation, backend = in-ns Service)
+#
+# NO authentik.home.arpa/enabled: cluster Authentik (auth.hwcopeland.net)
+# is out of scope for FMB product PRs (hwcopeland on iac#97). Backend is
+# the in-namespace Service, same as voice-agent / demo-mcp / arete / landings.
+# A FMB-owned Authentik in theswamp, if wanted, is a later theswamp-only PR.
+#
+# `git grep hu-rnmp origin/main` is empty as of 612fa03c.
+# kube-system/flmanbiosci-dnsrecord.yaml on that commit has no hu-rnmp A
+# record, so this CNAME does not collide with an existing A.
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: hu-rnmp
+  namespace: theswamp
+spec:
+  name: hu-rnmp.flmanbiosci.net
+  type: CNAME
+  content: flmanbiosci.net
+  proxied: true
+  ttl: 1
+  interval: 5m
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hu-rnmp
+  namespace: theswamp
+spec:
+  parentRefs:
+    - name: hwcopeland-gateway
+      namespace: kube-system
+      sectionName: flmanbiosci-https
+  hostnames:
+    - "hu-rnmp.flmanbiosci.net"
+  rules:
+    - backendRefs:
+        - name: hu-rnmp-browser
+          port: 8050

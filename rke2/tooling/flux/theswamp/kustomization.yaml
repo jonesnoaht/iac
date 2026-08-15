@@ -34,3 +34,7 @@ resources:
   - service-tracker.yaml
   - httproute-tracker.yaml
   - httproute-tracker-legacy-redirect.yaml
+  - pvc-hu-rnmp.yaml
+  - deployment-hu-rnmp.yaml
+  - service-hu-rnmp.yaml
+  - httproute-hu-rnmp.yaml
