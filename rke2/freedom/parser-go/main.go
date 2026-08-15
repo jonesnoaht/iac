@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -128,6 +129,36 @@ func scan(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool)
 		size      int64
 		mtime     float64
 	}
+
+	// Collect all candidates first, then process NEWEST FIRST (mtime desc) — so a
+	// backfill works back from the latest run and any genuinely-new file jumps to
+	// the front of every scan.
+	var cands []job
+	var listErr error
+	for obj := range s3.ListObjects(ctx, cfg.Raw, minio.ListObjectsOptions{Recursive: true}) {
+		if obj.Err != nil {
+			listErr = obj.Err
+			break
+		}
+		key := obj.Key
+		if !strings.HasSuffix(strings.ToLower(key), ".lcd") {
+			continue
+		}
+		total++
+		if seen[key] == "ok" {
+			continue
+		}
+		if now.Sub(obj.LastModified) < time.Duration(cfg.MinAge)*time.Second {
+			continue
+		}
+		inst := key
+		if i := strings.IndexByte(key, '/'); i >= 0 {
+			inst = key[:i]
+		}
+		cands = append(cands, job{key: key, inst: inst, size: obj.Size, mtime: float64(obj.LastModified.Unix())})
+	}
+	sort.Slice(cands, func(i, j int) bool { return cands[i].mtime > cands[j].mtime })
+
 	jobs := make(chan job, 512)
 	var wg sync.WaitGroup
 	for w := 0; w < cfg.Workers; w++ {
@@ -150,35 +181,12 @@ func scan(ctx context.Context, cfg Config, s3 *minio.Client, pool *pgxpool.Pool)
 			}
 		}()
 	}
-
-	var listErr error
-	for obj := range s3.ListObjects(ctx, cfg.Raw, minio.ListObjectsOptions{Recursive: true}) {
-		if obj.Err != nil {
-			listErr = obj.Err
-			break
-		}
-		key := obj.Key
-		if !strings.HasSuffix(strings.ToLower(key), ".lcd") {
-			continue
-		}
-		total++
-		if seen[key] == "ok" {
-			continue
-		}
-		if now.Sub(obj.LastModified) < time.Duration(cfg.MinAge)*time.Second {
-			continue
-		}
-		// instrument identity = first path segment under hplc-raw/ (the bucket
-		// folder we name helsa/hope), NOT the embedded LabSolutions system string.
-		inst := key
-		if i := strings.IndexByte(key, '/'); i >= 0 {
-			inst = key[:i]
-		}
-		jobs <- job{key: key, inst: inst, size: obj.Size, mtime: float64(obj.LastModified.Unix())}
+	for _, c := range cands {
+		jobs <- c
 	}
 	close(jobs)
 	wg.Wait()
-	log.Printf("scan: %d objects, %d ok, %d err (%d workers)", total, done, errc, cfg.Workers)
+	log.Printf("scan: %d objects, %d new, %d ok, %d err (%d workers, newest-first)", total, len(cands), done, errc, cfg.Workers)
 	return listErr
 }
 
