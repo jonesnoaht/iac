@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: di-lab
+  namespace: theswamp
+spec:
+  selector:
+    app: di-lab
+  ports:
+    - port: 8080
+      targetPort: 8080
