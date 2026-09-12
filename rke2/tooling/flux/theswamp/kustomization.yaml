@@ -34,3 +34,4 @@ resources:
   - service-tracker.yaml
   - httproute-tracker.yaml
   - httproute-tracker-legacy-redirect.yaml
+  - httproute-lab-chat.yaml
